@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 
-const EMPTY = { nome: '', telefone: '' };
+const EMPTY = { nome: '', telefone: '', email: '', obs: '' };
 
 function Toast({ msg, type }) {
   if (!msg) return null;
@@ -22,33 +22,42 @@ export default function AppClientes() {
   }
 
   async function load(q) {
-    const data = await api.app.clientes.list(q);
-    setClientes(data);
+    try {
+      const data = await api.app.clientes.list(q);
+      setClientes(data);
+    } catch { setClientes([]); }
   }
 
   useEffect(() => { load(); }, []);
 
   function openCreate() { setForm(EMPTY); setEditing(null); setModal(true); }
-  function openEdit(c) { setForm({ nome: c.nome, telefone: c.telefone || '' }); setEditing(c.id); setModal(true); }
+  function openEdit(c) {
+    setForm({ nome: c.nome || '', telefone: c.telefone || '', email: c.email || '', obs: c.obs || '' });
+    setEditing(c.id);
+    setModal(true);
+  }
 
   async function save(e) {
     e.preventDefault();
+    if (!form.nome.trim()) { showToast('Nome é obrigatório', 'error'); return; }
     try {
       if (editing) await api.app.clientes.update(editing, form);
       else await api.app.clientes.create(form);
       setModal(false);
       load(search);
-      showToast(editing ? 'Cliente atualizado!' : 'Cliente criado!');
+      showToast(editing ? 'Cliente atualizado!' : 'Cliente salvo com sucesso!');
     } catch (err) {
       showToast(err.error || 'Erro ao salvar', 'error');
     }
   }
 
   async function remove(id) {
-    if (!window.confirm('Remover este cliente?')) return;
-    await api.app.clientes.remove(id);
-    load(search);
-    showToast('Cliente removido');
+    if (!window.confirm('Deseja excluir este cliente?')) return;
+    try {
+      await api.app.clientes.remove(id);
+      load(search);
+      showToast('Cliente excluído');
+    } catch { showToast('Erro ao excluir', 'error'); }
   }
 
   function handleSearch(e) {
@@ -61,7 +70,7 @@ export default function AppClientes() {
       <div className="page-header">
         <div>
           <div className="page-title">Clientes</div>
-          <div className="page-subtitle">{clientes.length} clientes</div>
+          <div className="page-subtitle">{clientes.length} cadastrado(s)</div>
         </div>
         <button className="btn btn-primary" onClick={openCreate}>+ Novo Cliente</button>
       </div>
@@ -69,36 +78,42 @@ export default function AppClientes() {
       <div className="search-bar">
         <div className="search-input-wrap">
           <svg className="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Buscar cliente..." value={search} onChange={handleSearch} />
+          <input type="text" placeholder="Buscar por nome ou telefone..." value={search} onChange={handleSearch} />
         </div>
       </div>
 
       <div className="card">
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr><th>Nome</th><th>Telefone</th><th>Cadastro</th><th>Ações</th></tr>
-            </thead>
-            <tbody>
-              {clientes.length === 0 && (
-                <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32, color: 'var(--gray-400)' }}>Nenhum cliente encontrado</td></tr>
-              )}
-              {clientes.map(c => (
-                <tr key={c.id}>
-                  <td style={{ fontWeight: 600 }}>{c.nome}</td>
-                  <td>{c.telefone || '—'}</td>
-                  <td style={{ color: 'var(--gray-400)', fontSize: 12 }}>{c.data_criacao}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>Editar</button>
-                      <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)}>🗑</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {clientes.length ? (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Nome</th><th>Telefone</th><th>Email</th><th>Veículos</th><th>Ações</th></tr>
+              </thead>
+              <tbody>
+                {clientes.map(c => (
+                  <tr key={c.id}>
+                    <td><strong>{c.nome}</strong></td>
+                    <td>{c.telefone || '—'}</td>
+                    <td>{c.email || '—'}</td>
+                    <td><span className="badge badge-blue">{c.total_veiculos || 0} veículo(s)</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>✏️ Editar</button>
+                        <button className="btn btn-outline btn-sm" onClick={() => remove(c.id)}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <div className="empty-icon">👤</div>
+            <p>Nenhum cliente encontrado</p>
+            <button className="btn btn-primary" onClick={openCreate}>Cadastrar primeiro cliente</button>
+          </div>
+        )}
       </div>
 
       {modal && (
@@ -113,16 +128,24 @@ export default function AppClientes() {
                 <div className="form-grid">
                   <div className="form-group full">
                     <label>Nome *</label>
-                    <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} required />
+                    <input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Nome completo" required autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label>Telefone</label>
+                    <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} placeholder="(11) 99999-0000" />
+                  </div>
+                  <div className="form-group">
+                    <label>Email</label>
+                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" />
                   </div>
                   <div className="form-group full">
-                    <label>Telefone</label>
-                    <input value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} placeholder="(00) 00000-0000" />
+                    <label>Observações</label>
+                    <textarea value={form.obs} onChange={e => setForm(f => ({ ...f, obs: e.target.value }))} placeholder="Anotações sobre o cliente..." />
                   </div>
                 </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-outline" onClick={() => setModal(false)}>Cancelar</button>
-                  <button type="submit" className="btn btn-primary">Salvar</button>
+                  <button type="submit" className="btn btn-primary">💾 Salvar</button>
                 </div>
               </form>
             </div>

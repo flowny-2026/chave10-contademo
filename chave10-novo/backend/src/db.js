@@ -156,6 +156,16 @@ try {
   db.exec("UPDATE usuarios SET perfil = 'master_admin' WHERE perfil = 'admin'");
 } catch {}
 
+// Migrações de colunas
+const migrações = [
+  "ALTER TABLE clientes ADD COLUMN email TEXT",
+  "ALTER TABLE clientes ADD COLUMN obs TEXT",
+  "ALTER TABLE veiculos ADD COLUMN marca TEXT",
+  "ALTER TABLE veiculos ADD COLUMN km TEXT",
+  "ALTER TABLE orcamentos ADD COLUMN desconto REAL DEFAULT 0",
+];
+migrações.forEach(sql => { try { db.exec(sql); } catch {} });
+
 // Criar master_admin padrão se não existir
 const adminExists = db.prepare("SELECT id FROM usuarios WHERE perfil = 'master_admin'").get();
 if (!adminExists) {

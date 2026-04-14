@@ -54,11 +54,14 @@ router.get('/dashboard', (req, res) => {
 router.get('/clientes', (req, res) => {
   try {
     const { q } = req.query;
-    let query = 'SELECT * FROM clientes WHERE oficina_id = ?';
+    let query = `
+      SELECT c.*, COUNT(v.id) as total_veiculos
+      FROM clientes c
+      LEFT JOIN veiculos v ON v.cliente_id = c.id
+      WHERE c.oficina_id = ?`;
     const params = [oid(req)];
-    // q é passado como parâmetro LIKE — sem concatenação
-    if (q && typeof q === 'string') { query += ' AND nome LIKE ?'; params.push(`%${q.slice(0, 100)}%`); }
-    query += ' ORDER BY nome';
+    if (q && typeof q === 'string') { query += ' AND (c.nome LIKE ? OR c.telefone LIKE ?)'; params.push(`%${q.slice(0,100)}%`, `%${q.slice(0,100)}%`); }
+    query += ' GROUP BY c.id ORDER BY c.nome';
     res.json(db.prepare(query).all(...params));
   } catch (err) {
     log.error('app_get_clientes', err);
@@ -68,9 +71,9 @@ router.get('/clientes', (req, res) => {
 
 router.post('/clientes', validateCliente, (req, res) => {
   try {
-    const { nome, telefone } = req.body;
-    const result = db.prepare('INSERT INTO clientes (oficina_id, nome, telefone) VALUES (?, ?, ?)').run(oid(req), nome, telefone || null);
-    res.status(201).json({ id: result.lastInsertRowid, nome, telefone });
+    const { nome, telefone, email, obs } = req.body;
+    const result = db.prepare('INSERT INTO clientes (oficina_id, nome, telefone, email, obs) VALUES (?, ?, ?, ?, ?)').run(oid(req), nome, telefone||null, email||null, obs||null);
+    res.status(201).json({ id: result.lastInsertRowid, nome, telefone, email, obs });
   } catch (err) {
     log.error('app_post_cliente', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -79,10 +82,9 @@ router.post('/clientes', validateCliente, (req, res) => {
 
 router.put('/clientes/:id', validateCliente, (req, res) => {
   try {
-    const { nome, telefone } = req.body;
-    // oficina_id no WHERE garante isolamento — usuário não pode editar cliente de outra oficina
-    db.prepare('UPDATE clientes SET nome = COALESCE(?, nome), telefone = COALESCE(?, telefone) WHERE id = ? AND oficina_id = ?')
-      .run(nome, telefone || null, req.params.id, oid(req));
+    const { nome, telefone, email, obs } = req.body;
+    db.prepare('UPDATE clientes SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone), email=COALESCE(?,email), obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
+      .run(nome, telefone||null, email||null, obs||null, req.params.id, oid(req));
     res.json({ ok: true });
   } catch (err) {
     log.error('app_put_cliente', err);
@@ -121,10 +123,10 @@ router.get('/veiculos', (req, res) => {
 
 router.post('/veiculos', validateVeiculo, (req, res) => {
   try {
-    const { cliente_id, placa, modelo, ano } = req.body;
-    const result = db.prepare('INSERT INTO veiculos (oficina_id, cliente_id, placa, modelo, ano) VALUES (?, ?, ?, ?, ?)')
-      .run(oid(req), cliente_id || null, placa || null, modelo, ano || null);
-    res.status(201).json({ id: result.lastInsertRowid, placa, modelo, ano });
+    const { cliente_id, placa, modelo, marca, ano, km } = req.body;
+    const result = db.prepare('INSERT INTO veiculos (oficina_id, cliente_id, placa, modelo, marca, ano, km) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(oid(req), cliente_id||null, placa||null, modelo, marca||null, ano||null, km||null);
+    res.status(201).json({ id: result.lastInsertRowid, placa, modelo, marca, ano, km });
   } catch (err) {
     log.error('app_post_veiculo', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -133,9 +135,9 @@ router.post('/veiculos', validateVeiculo, (req, res) => {
 
 router.put('/veiculos/:id', validateVeiculo, (req, res) => {
   try {
-    const { cliente_id, placa, modelo, ano } = req.body;
-    db.prepare('UPDATE veiculos SET cliente_id = COALESCE(?, cliente_id), placa = COALESCE(?, placa), modelo = COALESCE(?, modelo), ano = COALESCE(?, ano) WHERE id = ? AND oficina_id = ?')
-      .run(cliente_id || null, placa || null, modelo, ano || null, req.params.id, oid(req));
+    const { cliente_id, placa, modelo, marca, ano, km } = req.body;
+    db.prepare('UPDATE veiculos SET cliente_id=COALESCE(?,cliente_id), placa=COALESCE(?,placa), modelo=COALESCE(?,modelo), marca=COALESCE(?,marca), ano=COALESCE(?,ano), km=COALESCE(?,km) WHERE id=? AND oficina_id=?')
+      .run(cliente_id||null, placa||null, modelo, marca||null, ano||null, km||null, req.params.id, oid(req));
     res.json({ ok: true });
   } catch (err) {
     log.error('app_put_veiculo', err);
@@ -399,6 +401,16 @@ router.put('/orcamentos/:id', (req, res) => {
 router.delete('/orcamentos/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM orcamentos WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.patch('/orcamentos/:id/status', (req, res) => {
+  try {
+    const { status } = req.body;
+    const validos = ['pendente','aprovado','rejeitado'];
+    if (!validos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
+    db.prepare('UPDATE orcamentos SET status=? WHERE id=? AND oficina_id=?').run(status, req.params.id, oid(req));
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
 });

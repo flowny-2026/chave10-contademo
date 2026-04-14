@@ -206,4 +206,70 @@ router.get('/pagamentos', (req, res) => {
   }
 });
 
+// ─── DETALHES DA OFICINA ─────────────────────────────────────
+router.get('/oficinas/:id/detalhes', (req, res) => {
+  try {
+    const id = req.params.id;
+    const oficina = db.prepare('SELECT * FROM oficinas WHERE id = ?').get(id);
+    if (!oficina) return res.status(404).json({ error: 'Oficina não encontrada' });
+
+    const usuarios = db.prepare('SELECT id, nome, email, perfil, ativo, ultimo_acesso FROM usuarios WHERE oficina_id = ?').all(id);
+    const pagamentos = db.prepare('SELECT * FROM pagamentos WHERE oficina_id = ? ORDER BY data_pagamento DESC LIMIT 10').all(id);
+
+    const uso = {
+      clientes:  db.prepare('SELECT COUNT(*) as n FROM clientes WHERE oficina_id = ?').get(id).n,
+      veiculos:  db.prepare('SELECT COUNT(*) as n FROM veiculos WHERE oficina_id = ?').get(id).n,
+      os:        db.prepare('SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ?').get(id).n,
+      osMes:     db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ? AND data >= date('now','start of month')").get(id).n,
+      faturamento: db.prepare("SELECT COALESCE(SUM(valor),0) as n FROM ordens_servico WHERE oficina_id = ? AND status = 'finalizado'").get(id).n,
+    };
+
+    res.json({ oficina, usuarios, pagamentos, uso });
+  } catch (err) {
+    log.error('admin_get_detalhes', err);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// ─── VENCENDO EM 7 DIAS ──────────────────────────────────────
+router.get('/vencendo', (req, res) => {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    const em7  = new Date(); em7.setDate(em7.getDate() + 7);
+    const em7str = em7.toISOString().split('T')[0];
+    const rows = db.prepare(`
+      SELECT * FROM oficinas
+      WHERE data_vencimento BETWEEN ? AND ?
+      AND status_assinatura IN ('active','overdue')
+      ORDER BY data_vencimento ASC
+    `).all(hoje, em7str);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// ─── RENOVAÇÃO EM LOTE ───────────────────────────────────────
+router.post('/renovar-lote', (req, res) => {
+  try {
+    const { ids, novo_vencimento, valor, forma_pagamento } = req.body;
+    if (!ids?.length || !novo_vencimento) return res.status(400).json({ error: 'ids e novo_vencimento são obrigatórios' });
+
+    const hoje = new Date().toISOString().split('T')[0];
+    ids.forEach(id => {
+      db.prepare("UPDATE oficinas SET status_assinatura = 'active', data_vencimento = ? WHERE id = ?").run(novo_vencimento, id);
+      if (valor && parseFloat(valor) > 0) {
+        db.prepare('INSERT INTO pagamentos (oficina_id, valor, data_pagamento, novo_vencimento, forma_pagamento, confirmado_por) VALUES (?,?,?,?,?,?)').run(
+          id, parseFloat(valor), hoje, novo_vencimento, forma_pagamento || 'pix', String(req.user.id)
+        );
+      }
+    });
+    log.info('renovacao_lote', { ids, novo_vencimento, por: req.user.id });
+    res.json({ ok: true, renovadas: ids.length });
+  } catch (err) {
+    log.error('admin_renovar_lote', err);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 module.exports = router;

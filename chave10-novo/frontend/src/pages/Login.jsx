@@ -42,7 +42,9 @@ function LoginLoader() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
     }}>
-      <img src="/logo-white.png" alt="Chave 10" style={{ height: 48, marginBottom: 48, animation: 'llFadeUp 0.6s ease both' }} />
+      <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px', marginBottom: 48, animation: 'llFadeUp 0.6s ease both' }}>
+        Chave <span style={{ color: '#F97316' }}>10</span>
+      </div>
       <div style={{ width: 320, marginBottom: 20, animation: 'llFadeUp 0.6s 0.15s ease both' }}>
         <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'visible', position: 'relative' }}>
           <div style={{ height: '100%', width: pct + '%', background: 'linear-gradient(90deg, #F97316, #fb923c)', borderRadius: 99, transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)', position: 'relative' }}>
@@ -104,7 +106,9 @@ export default function Login() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d1b2e' }}>
         <div style={{ width: '100%', maxWidth: 400, background: '#fff', borderRadius: 16, padding: '48px 40px', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <img src="/logo.png" alt="Chave 10" style={{ height: 48, marginBottom: 12 }} />
+            <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 28, fontWeight: 800, color: 'var(--brand)', letterSpacing: '-0.5px' }}>
+              Chave <span style={{ color: 'var(--accent)' }}>10</span>
+            </div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '4px 14px', background: 'var(--brand-light)', borderRadius: 20, fontSize: 11, fontWeight: 700, color: 'var(--brand)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
               ⚙️ Painel Administrativo
             </div>
@@ -135,7 +139,9 @@ export default function Login() {
     <div className="login-screen">
       <div className="login-left">
         <div className="login-left-content">
-          <img src="/logo-white.png" alt="Chave 10" style={{ height: 40, marginBottom: 24 }} />
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.3px', marginBottom: 24 }}>
+            Chave <span style={{ color: '#F97316' }}>10</span>
+          </div>
           <h2 className="login-headline">Organize sua oficina.<br/>Cresça com dados.</h2>
           <p className="login-desc">Controle ordens de serviço, clientes, veículos e faturamento em um só lugar.</p>
           <div className="login-features">
@@ -148,7 +154,9 @@ export default function Login() {
       </div>
       <div className="login-right">
         <div className="login-box">
-          <img src="/logo.png" alt="Chave 10" style={{ height: 36, marginBottom: 20 }} />
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 800, color: 'var(--brand)', letterSpacing: '-0.3px', marginBottom: 20 }}>
+            Chave <span style={{ color: 'var(--accent)' }}>10</span>
+          </div>
           <h1 className="login-title">Acesse sua conta</h1>
           <p className="login-subtitle">Sistema completo para gestão de oficinas.</p>
           <form onSubmit={handleLogin}>

@@ -37,7 +37,10 @@ export const api = {
       setStatus:(id, status)         => patch('/admin/oficinas/'+id+'/status', { status }),
       remove:  (id)                  => del('/admin/oficinas/'+id),
       usuarios:(id)                  => get('/admin/oficinas/'+id+'/usuarios'),
+      detalhes:(id)                  => get('/admin/oficinas/'+id+'/detalhes'),
     },
+    vencendo:  ()                    => get('/admin/vencendo'),
+    renovarLote:(data)               => post('/admin/renovar-lote', data),
     usuarios: {
       create:  (data)                => post('/admin/usuarios', data),
     },
@@ -66,6 +69,13 @@ export const api = {
       update:  (id, data)            => put('/app/os/'+id, data),
       setStatus:(id, status)         => patch('/app/os/'+id+'/status', { status }),
       remove:  (id)                  => del('/app/os/'+id),
+    },
+    orcamentos: {
+      list:    ()                    => get('/app/orcamentos'),
+      create:  (data)                => post('/app/orcamentos', data),
+      update:  (id, data)            => put('/app/orcamentos/'+id, data),
+      setStatus:(id, status)         => patch('/app/orcamentos/'+id+'/status', { status }),
+      remove:  (id)                  => del('/app/orcamentos/'+id),
     },
   },
 };

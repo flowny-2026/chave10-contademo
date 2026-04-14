@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import AdminLogin from './pages/AdminLogin';
 import Bloqueado from './pages/Bloqueado';
@@ -10,6 +10,14 @@ import AppDashboard from './pages/app/Dashboard';
 import AppClientes from './pages/app/Clientes';
 import AppVeiculos from './pages/app/Veiculos';
 import AppOS from './pages/app/OS';
+import AppOrcamentos from './pages/app/Orcamentos';
+import AppAgenda from './pages/app/Agenda';
+import AppMensagens from './pages/app/Mensagens';
+import AppFinanceiro from './pages/app/Financeiro';
+import AppRelatorios from './pages/app/Relatorios';
+import AppLembretes from './pages/app/Lembretes';
+import AppEstoque from './pages/app/Estoque';
+import AppConfiguracoes from './pages/app/Configuracoes';
 
 function getUser() {
   try { return JSON.parse(localStorage.getItem('c10_user')); } catch { return null; }
@@ -39,26 +47,26 @@ export default function App() {
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/bloqueado" element={<Bloqueado />} />
 
-        <Route path="/admin" element={
-          <PrivateRoute adminOnly>
-            <Layout area="admin" />
-          </PrivateRoute>
-        }>
+        <Route path="/admin" element={<PrivateRoute adminOnly><Layout area="admin" /></PrivateRoute>}>
           <Route path="dashboard"  element={<AdminDashboard />} />
           <Route path="oficinas"   element={<AdminOficinas />} />
           <Route path="pagamentos" element={<AdminPagamentos />} />
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>
 
-        <Route path="/app" element={
-          <PrivateRoute>
-            <Layout area="app" />
-          </PrivateRoute>
-        }>
-          <Route path="dashboard" element={<AppDashboard />} />
-          <Route path="clientes"  element={<AppClientes />} />
-          <Route path="veiculos"  element={<AppVeiculos />} />
-          <Route path="os"        element={<AppOS />} />
+        <Route path="/app" element={<PrivateRoute><Layout area="app" /></PrivateRoute>}>
+          <Route path="dashboard"    element={<AppDashboard />} />
+          <Route path="clientes"     element={<AppClientes />} />
+          <Route path="veiculos"     element={<AppVeiculos />} />
+          <Route path="os"           element={<AppOS />} />
+          <Route path="orcamentos"   element={<AppOrcamentos />} />
+          <Route path="agenda"       element={<AppAgenda />} />
+          <Route path="mensagens"    element={<AppMensagens />} />
+          <Route path="financeiro"   element={<AppFinanceiro />} />
+          <Route path="relatorios"   element={<AppRelatorios />} />
+          <Route path="lembretes"    element={<AppLembretes />} />
+          <Route path="estoque"      element={<AppEstoque />} />
+          <Route path="configuracoes" element={<AppConfiguracoes />} />
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>
 
