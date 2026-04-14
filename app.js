@@ -589,10 +589,68 @@ function renderDashboard(periodo, inicio, fim) {
 
   const periodoLabel = { mes_atual: 'Mês atual', mes_anterior: 'Mês anterior', ano_atual: 'Ano atual', ultimos_30: 'Últimos 30 dias', personalizado: 'Personalizado' }[periodo] || periodo;
 
+  // Faturamento hoje e semana
+  const _hoje = new Date().toISOString().split('T')[0];
+  const _semAgo = new Date(); _semAgo.setDate(_semAgo.getDate() - 6);
+  const _semStr = _semAgo.toISOString().split('T')[0];
+  const fatSemana = todasOrdens.filter(o => o.data >= _semStr && o.data <= _hoje && o.status === 'finalizado')
+    .reduce((s,o) => s + parseFloat(o.valorMO||0) + parseFloat(o.valorPecas||0), 0);
+  const fatHoje = todasOrdens.filter(o => o.data === _hoje && o.status === 'finalizado')
+    .reduce((s,o) => s + parseFloat(o.valorMO||0) + parseFloat(o.valorPecas||0), 0);
+
   document.getElementById('mainContent').innerHTML = `
-    <div class="page-header">
+
+    <!-- HERO SECTION -->
+    <div style="background:linear-gradient(135deg,var(--brand) 0%,var(--brand-mid) 100%);border-radius:var(--r-lg);padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 80% 50%,rgba(249,115,22,.18),transparent 60%);pointer-events:none"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;position:relative;z-index:1">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Faturamento do mês</div>
+          <div style="font-family:'Poppins',sans-serif;font-size:38px;font-weight:800;color:#fff;line-height:1;margin-bottom:10px">${fmt.currency(faturamento)}</div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:${meta>0?'14px':'4px'}">
+            ${fatAnt > 0 ? variacao(faturamento, fatAnt) : ''}
+            <span style="font-size:13px;color:rgba(255,255,255,.55)">${qtdServicos} serviço(s) · ticket médio ${fmt.currency(ticketMedio)}</span>
+          </div>
+          ${meta > 0 ? `
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="font-size:12px;color:rgba(255,255,255,.5)">Meta: ${fmt.currency(meta)}</span>
+              <span style="font-size:12px;font-weight:700;color:${pctMeta>=100?'#4ade80':'rgba(255,255,255,.8)'}">${pctMeta.toFixed(1)}%</span>
+            </div>
+            <div style="height:6px;background:rgba(255,255,255,.15);border-radius:99px;overflow:hidden;width:320px;max-width:100%">
+              <div style="height:100%;width:${pctMeta}%;background:${pctMeta>=100?'#4ade80':'var(--accent)'};border-radius:99px"></div>
+            </div>
+            <div style="margin-top:8px;font-size:13px;color:rgba(255,255,255,.7)">
+              ${pctMeta >= 100 ? '🏆 Meta atingida! Parabéns!' : `Hoje você precisa faturar <strong style="color:#fff">${fmt.currency(porDia)}</strong> para bater a meta`}
+            </div>
+          </div>` : `<button class="btn btn-sm" onclick="abrirModalMeta()" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)">🎯 Definir meta mensal</button>`}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+          <button class="btn btn-primary" onclick="navigate('ordens');setTimeout(novaOrdem,100)"
+            style="font-size:15px;padding:14px 22px;box-shadow:0 4px 20px rgba(249,115,22,.5)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            Nova Ordem de Serviço
+          </button>
+          <div style="display:flex;gap:8px">
+            <div style="background:rgba(255,255,255,.1);border-radius:var(--r-sm);padding:10px 14px;text-align:center;min-width:80px">
+              <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Hoje</div>
+              <div style="font-size:15px;font-weight:800;color:#fff">${fmt.currency(fatHoje)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,.1);border-radius:var(--r-sm);padding:10px 14px;text-align:center;min-width:80px">
+              <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">Semana</div>
+              <div style="font-size:15px;font-weight:800;color:#fff">${fmt.currency(fatSemana)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,.1);border-radius:var(--r-sm);padding:10px 14px;text-align:center;min-width:80px">
+              <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">OS abertas</div>
+              <div style="font-size:15px;font-weight:800;color:${ordensAbertas.length>0?'#fbbf24':'#fff'}">${ordensAbertas.length}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-header" style="margin-bottom:16px">
       <div><div class="page-title">Dashboard</div><div class="page-subtitle">${periodoLabel} · ${fmt.date(inicio)} a ${fmt.date(fim)}</div></div>
-      <button class="btn btn-primary" onclick="navigate('ordens');setTimeout(novaOrdem,100)">+ Nova OS</button>
     </div>
 
     <!-- PERÍODO -->
@@ -625,7 +683,7 @@ function renderDashboard(periodo, inicio, fim) {
     <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:24px">
       <div class="stat-card orange">
         <div class="stat-icon orange"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <div><div class="stat-value" style="font-size:18px">${fmt.currency(faturamento)}</div><div class="stat-label">Faturamento</div>${variacao(faturamento, fatAnt)}</div>
+        <div><div class="stat-value anim-count" data-val="${faturamento}" data-currency="1" style="font-size:18px">${fmt.currency(faturamento)}</div><div class="stat-label">Faturamento</div>${variacao(faturamento, fatAnt)}</div>
       </div>
       <div class="stat-card green">
         <div class="stat-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -633,7 +691,7 @@ function renderDashboard(periodo, inicio, fim) {
       </div>
       <div class="stat-card blue">
         <div class="stat-icon blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-        <div><div class="stat-value" style="font-size:18px">${fmt.currency(ticketMedio)}</div><div class="stat-label">Ticket médio</div></div>
+        <div><div class="stat-value anim-count" data-val="${ticketMedio}" data-currency="1" style="font-size:18px">${fmt.currency(ticketMedio)}</div><div class="stat-label">Ticket médio</div></div>
       </div>
       <div class="stat-card blue">
         <div class="stat-icon blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
@@ -737,6 +795,22 @@ function renderDashboard(periodo, inicio, fim) {
       <div class="dash-card-header"><span>🥧 Distribuição de receita por categoria</span></div>
       ${renderPieChart(categorias)}
     </div>`;
+
+  // Animação de contagem nos KPI cards
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.anim-count').forEach(el => {
+      const target = parseFloat(el.dataset.val) || 0;
+      if (target === 0) return;
+      const isCurrency = el.dataset.currency === '1';
+      let step = 0; const steps = 30;
+      const timer = setInterval(() => {
+        step++;
+        const val = target * Math.min(step / steps, 1);
+        el.textContent = isCurrency ? fmt.currency(val) : Math.round(val);
+        if (step >= steps) { clearInterval(timer); el.textContent = isCurrency ? fmt.currency(target) : target; }
+      }, 800 / steps);
+    });
+  });
 }
 
 // ===== CHART TOOLTIP =====
