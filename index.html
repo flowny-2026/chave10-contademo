@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chave 10 — A ferramenta que faltava na sua gestão</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Roda antes do DOM — evita flash de conteúdo errado
+    (function() {
+      var auth = sessionStorage.getItem('of_auth');
+      document.addEventListener('DOMContentLoaded', function() {
+        var landing = document.getElementById('landingPage');
+        var app = document.getElementById('appShell');
+        var login = document.getElementById('loginScreen');
+        if (auth === '1') {
+          if (landing) landing.style.display = 'none';
+          if (login) login.classList.add('hidden');
+          if (app) app.style.display = 'flex';
+        } else {
+          if (landing) landing.style.display = '';
+          if (app) app.style.display = 'none';
+        }
+      });
+    })();
+  </script>
+</head>
+<body>
+
+<!-- LANDING PAGE -->
+<div id="landingPage" style="display:none">
+
+  <!-- NAV -->
+  <nav class="lp-nav">
+    <div class="lp-nav-inner">
+      <div class="lp-brand">
+        <img src="Imagens/logo.png" style="height:34px;">
+        <span>Chave <span class="lp-accent">10</span></span>
+      </div>
+      <button class="lp-nav-cta" onclick="irParaLogin()">Iniciar Demo</button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="lp-hero">
+    <div class="lp-hero-orbs">
+      <div class="lp-orb lp-orb-1"></div>
+      <div class="lp-orb lp-orb-2"></div>
+      <div class="lp-orb lp-orb-3"></div>
+    </div>
+    <div class="lp-container">
+      <div class="lp-hero-content lp-fade-up">
+        <div class="lp-hero-badge">
+          <span class="lp-badge-dot"></span>
+          A ferramenta que faltava na sua gestão
+        </div>
+        <h1 class="lp-hero-title">Organize sua oficina.<br/><span class="lp-gradient-text">Cresça com controle.</span></h1>
+        <p class="lp-hero-sub">Sistema simples para oficinas mecânicas organizarem clientes, serviços e acompanharem o faturamento.</p>
+        <div class="lp-hero-actions">
+          <button class="lp-btn-primary lp-btn-glow" onclick="irParaLogin()">
+            Iniciar Demo gratuita
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+          <a class="lp-btn-whatsapp" href="https://wa.me/5516992915540?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20Chave%2010!" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+            Falar no WhatsApp
+          </a>
+          <span class="lp-hero-note-inline">Sem cadastro · Acesso imediato · 100% gratuito</span>
+        </div>
+        <div class="lp-hero-pills">
+          <div class="lp-hero-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Clientes e veículos organizados
+          </div>
+          <div class="lp-hero-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Orçamentos via WhatsApp
+          </div>
+          <div class="lp-hero-pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Relatórios e metas em tempo real
+          </div>
+        </div>
+      </div>
+      <div class="lp-hero-visual lp-fade-up lp-fade-delay-2">
+        <div class="lp-mockup-wrap">
+          <div class="lp-mockup-glow"></div>
+          <div class="lp-mockup" id="lpMockup">
+            <div class="lp-mock-topbar">
+              <div class="lp-mock-dots">
+                <div class="lp-mock-dot r"></div>
+                <div class="lp-mock-dot y"></div>
+                <div class="lp-mock-dot g"></div>
+              </div>
+              <div class="lp-mock-title" id="lpMockTitle">Dashboard</div>
+            </div>
+            <div class="lp-mock-body" id="lpMockBody"></div>
+          </div>
+          <div class="lp-mockup-float lp-float-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            OS #0047 finalizada
+          </div>
+          <div class="lp-mockup-float lp-float-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            +R$ 1.200 recebido
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENEFÍCIOS -->
+  <section class="lp-section lp-benefits">
+    <div class="lp-container">
+      <div class="lp-section-header lp-reveal">
+        <div class="lp-section-tag">Funcionalidades</div>
+        <h2 class="lp-section-title">Tudo que sua oficina precisa</h2>
+        <p class="lp-section-sub">Ferramentas pensadas para o dia a dia do mecânico</p>
+      </div>
+      <div class="lp-benefits-grid">
+        <div class="lp-benefit-card lp-reveal">
+          <div class="lp-benefit-icon" style="background:#e8eef6;color:#1E3A5F">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3>Controle total</h3>
+          <p>Dashboard com métricas em tempo real. Faturamento, OS abertas, ticket médio e muito mais.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+        <div class="lp-benefit-card lp-reveal lp-reveal-delay-1">
+          <div class="lp-benefit-icon" style="background:#fff7ed;color:#F97316">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3>Orçamentos via WhatsApp</h3>
+          <p>Crie orçamentos profissionais em segundos e envie direto para o cliente pelo WhatsApp.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+        <div class="lp-benefit-card lp-reveal lp-reveal-delay-2">
+          <div class="lp-benefit-icon" style="background:#f0fdf4;color:#16a34a">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3>Histórico completo</h3>
+          <p>Todo o histórico de manutenções de cada veículo acessível com um clique.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+        <div class="lp-benefit-card lp-reveal lp-reveal-delay-3">
+          <div class="lp-benefit-icon" style="background:#fef2f2;color:#dc2626">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3>Relatórios inteligentes</h3>
+          <p>Gráficos de faturamento, metas mensais e análise de desempenho da sua oficina.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+        <div class="lp-benefit-card lp-reveal lp-reveal-delay-1">
+          <div class="lp-benefit-icon" style="background:#f5f3ff;color:#7c3aed">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <h3>Controle de estoque</h3>
+          <p>Gerencie peças e ferramentas com alertas de estoque baixo automáticos.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+        <div class="lp-benefit-card lp-reveal lp-reveal-delay-2">
+          <div class="lp-benefit-icon" style="background:#f0f9ff;color:#0284c7">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <h3>Lembretes automáticos</h3>
+          <p>Notifique clientes sobre revisões e manutenções preventivas no momento certo.</p>
+          <div class="lp-benefit-arrow">→</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
+  <section class="lp-section lp-how">
+    <div class="lp-container">
+      <div class="lp-section-header lp-reveal">
+        <div class="lp-section-tag">Como funciona</div>
+        <h2 class="lp-section-title">Três passos para organizar sua oficina</h2>
+        <p class="lp-section-sub">Comece a usar em minutos, sem treinamento</p>
+      </div>
+      <div class="lp-steps-new">
+        <div class="lp-step-new lp-reveal">
+          <div class="lp-step-num-new">01</div>
+          <div class="lp-step-icon-new">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>Cadastre clientes e veículos</h3>
+          <p>Registre seus clientes e os veículos deles em segundos. Tudo organizado e fácil de encontrar.</p>
+        </div>
+        <div class="lp-step-connector lp-reveal lp-reveal-delay-1">
+          <svg width="40" height="16" viewBox="0 0 40 16" fill="none"><path d="M0 8 H32 M28 4 L36 8 L28 12" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="lp-step-new lp-reveal lp-reveal-delay-1">
+          <div class="lp-step-num-new">02</div>
+          <div class="lp-step-icon-new">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h3>Crie ordens de serviço</h3>
+          <p>Abra OS rapidamente, registre serviços, peças e valores. Envie orçamentos pelo WhatsApp.</p>
+        </div>
+        <div class="lp-step-connector lp-reveal lp-reveal-delay-2">
+          <svg width="40" height="16" viewBox="0 0 40 16" fill="none"><path d="M0 8 H32 M28 4 L36 8 L28 12" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="lp-step-new lp-reveal lp-reveal-delay-2">
+          <div class="lp-step-num-new">03</div>
+          <div class="lp-step-icon-new">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <h3>Acompanhe o faturamento</h3>
+          <p>Veja gráficos, metas e relatórios em tempo real. Saiba exatamente como sua oficina está.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="lp-cta">
+    <div class="lp-cta-orbs">
+      <div class="lp-orb lp-orb-cta-1"></div>
+      <div class="lp-orb lp-orb-cta-2"></div>
+    </div>
+    <div class="lp-container">
+      <div class="lp-cta-inner lp-reveal">
+        <div class="lp-cta-badge">Comece agora — é gratuito</div>
+        <h2 class="lp-cta-title">Organize sua oficina.<br/>Cresça com dados.</h2>
+        <p class="lp-cta-sub">Veja na prática como o Chave 10 pode simplificar sua gestão e aumentar seu faturamento.</p>
+        <button class="lp-btn-primary lp-btn-lg lp-btn-glow" onclick="irParaLogin()">
+          Iniciar Demo gratuita
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+        <p class="lp-cta-note">Sem cadastro · Sem cartão de crédito · Acesso imediato</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="lp-footer">
+    <div class="lp-container">
+      <div class="lp-footer-inner">
+        <div class="lp-brand" style="color:rgba(255,255,255,.5)">
+          <img src="Imagens/logo.png" style="height:24px;">
+          <span>Chave <span class="lp-accent">10</span></span>
+        </div>
+        <span>© 2026 · A ferramenta que faltava na sua gestão</span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen hidden" id="loginScreen">
+  <div class="login-left">
+    <div class="login-left-content">
+      <div class="login-brand-mark">
+        <img src="Imagens/logo.png" style="height:56px;">
+        <div>
+          <div class="login-brand-name"><span>Chave</span> <span class="accent">10</span></div>
+          <div class="login-brand-slogan">A ferramenta que faltava na sua gestão</div>
+        </div>
+      </div>
+      <h2 class="login-headline">Organize sua oficina.<br/>Cresça com dados.</h2>
+      <p class="login-desc">Controle ordens de serviço, clientes, veículos e faturamento em um só lugar.</p>
+      <div class="login-features">
+        <div class="login-feat"><span class="feat-dot"></span>Dashboard com métricas em tempo real</div>
+        <div class="login-feat"><span class="feat-dot"></span>Orçamentos enviados pelo WhatsApp</div>
+        <div class="login-feat"><span class="feat-dot"></span>Histórico completo de cada veículo</div>
+        <div class="login-feat"><span class="feat-dot"></span>Relatórios de desempenho da oficina</div>
+      </div>
+    </div>
+  </div>
+  <div class="login-right">
+    <div class="login-box">
+      <div class="login-mobile-brand">
+        <img src="Imagens/logo.png" style="height:36px;">
+        <div>
+          <div class="login-mobile-name">Chave <span class="accent">10</span></div>
+          <div class="login-mobile-slogan">A ferramenta que faltava na sua gestão</div>
+        </div>
+      </div>
+      <h1 class="login-title">Acesse sua oficina</h1>
+      <p class="login-subtitle">O sistema completo para organizar sua oficina.</p>
+      <div class="form-group" style="margin-bottom:14px">
+        <label>E-mail ou usuário</label>
+        <div class="input-icon-wrap">
+          <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input id="loginUser" type="text" placeholder="admin" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Senha</label>
+        <div class="input-icon-wrap">
+          <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input id="loginPass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" />
+        </div>
+      </div>
+      <div class="login-hint">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Demo: <strong>admin</strong> / <strong>1234</strong>
+      </div>
+      <button class="btn btn-primary login-btn" onclick="doLogin()">
+        Entrar na conta
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app-shell" id="appShell" style="display:none">
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <img src="Imagens/logo.png" style="height:36px;">
+      <div class="brand-text">
+        <span class="brand-name">Chave <span class="brand-accent">10</span></span>
+        <span class="brand-slogan">A ferramenta que faltava na sua gestão</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">Principal</div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="clientes">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="#" class="nav-item" data-page="veiculos">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+        <span>Veículos</span>
+      </a>
+      <a href="#" class="nav-item" data-page="ordens">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+        <span>Ordens de Serviço</span>
+      </a>
+      <a href="#" class="nav-item" data-page="orcamentos">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Orçamentos</span>
+      </a>
+      <a href="#" class="nav-item" data-page="agenda">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span>Agenda</span>
+        <span class="nav-badge">Novo</span>
+      </a>
+      <a href="#" class="nav-item" data-page="mensagens">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span>Mensagens</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-section-label">Gestão</div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item" data-page="financeiro">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        <span>Financeiro</span>
+      </a>
+      <a href="#" class="nav-item" data-page="relatorios">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span>Relatórios</span>
+      </a>
+      <a href="#" class="nav-item" data-page="lembretes">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+        <span>Lembretes</span>
+      </a>
+      <a href="#" class="nav-item" data-page="estoque">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Estoque</span>
+      </a>
+      <a href="#" class="nav-item" data-page="configuracoes">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span>Configurações</span>
+      </a>
+
+      <a href="#" class="nav-item nav-item-planos" data-page="planos">
+        <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+        <span>Planos</span>
+        <span class="nav-badge nav-badge-promo">oferta</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar">A</div>
+        <div class="sidebar-user-info">
+          <span class="sidebar-user-name">Administrador</span>
+          <span class="sidebar-user-role">Gerente</span>
+        </div>
+        <button class="btn-logout-icon" onclick="doLogout()" title="Sair">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+      <span class="sidebar-version">v1.0 MVP</span>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+    <header class="topbar">
+      <button class="menu-toggle" id="menuToggle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="topbar-logo">
+        <img src="Imagens/logo.png" style="height:28px;">
+        <span class="topbar-name">Chave <span class="accent">10</span></span>
+      </div>
+      <div class="topbar-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Buscar cliente, OS, veículo..." id="globalSearch" oninput="globalSearchHandler(this.value)" onblur="setTimeout(()=>document.getElementById('globalResults').style.display='none',200)" />
+        <div class="global-results" id="globalResults"></div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-quick-actions">
+          <button class="btn btn-primary btn-sm topbar-action-btn" onclick="navigate('ordens');setTimeout(novaOrdem,100)" title="Nova OS">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span class="action-label">Nova OS</span>
+          </button>
+          <button class="btn btn-outline btn-sm topbar-action-btn" onclick="navigate('clientes');setTimeout(formCliente,100)" title="Novo Cliente">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <span class="action-label">Cliente</span>
+          </button>
+          <button class="btn btn-outline btn-sm topbar-action-btn" onclick="navigate('orcamentos');setTimeout(formOrcamento,100)" title="Novo Orçamento">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            <span class="action-label">Orçamento</span>
+          </button>
+        </div>
+        <div class="topbar-divider"></div>
+        <button class="topbar-btn" title="Notificações" onclick="navigate('lembretes')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="topbar-badge" id="notifBadge" style="display:none"></span>
+        </button>
+        <div class="topbar-divider"></div>
+        <div class="user-menu-wrap" id="userMenuWrap">
+          <button class="topbar-user" onclick="toggleUserMenu()" id="userMenuBtn">
+            <div class="topbar-avatar">A</div>
+            <div class="topbar-user-info">
+              <span class="topbar-user-name">Administrador</span>
+              <span class="topbar-user-role">Gerente</span>
+            </div>
+            <svg style="margin-left:4px;color:var(--gray-400);flex-shrink:0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="udrop-header">
+              <div class="udrop-avatar">A</div>
+              <div>
+                <div class="udrop-name">Administrador</div>
+                <div class="udrop-role">Gerente · admin</div>
+              </div>
+            </div>
+            <div class="udrop-divider"></div>
+            <button class="udrop-item" onclick="closeUserMenu();navigate('dashboard')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Dashboard
+            </button>
+            <button class="udrop-item" onclick="closeUserMenu();navigate('configuracoes')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Configurações da oficina
+            </button>
+            <button class="udrop-item" onclick="closeUserMenu();navigate('relatorios')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Relatórios
+            </button>
+            <div class="udrop-divider"></div>
+            <button class="udrop-item udrop-item-danger" onclick="closeUserMenu();doLogout()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Sair da conta
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="main-content" id="mainContent"></main>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- CHART TOOLTIP -->
+<div id="chartTip"></div>
+
+<script src="data.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
