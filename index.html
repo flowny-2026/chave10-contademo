@@ -8,30 +8,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <script>
-    // Roda antes do DOM — evita flash de conteúdo errado
-    (function() {
-      var auth = sessionStorage.getItem('of_auth');
-      document.addEventListener('DOMContentLoaded', function() {
-        var landing = document.getElementById('landingPage');
-        var app = document.getElementById('appShell');
-        var login = document.getElementById('loginScreen');
-        if (auth === '1') {
-          if (landing) landing.style.display = 'none';
-          if (login) login.classList.add('hidden');
-          if (app) app.style.display = 'flex';
-        } else {
-          if (landing) landing.style.display = '';
-          if (app) app.style.display = 'none';
-        }
-      });
-    })();
-  </script>
 </head>
 <body>
 
 <!-- LANDING PAGE -->
-<div id="landingPage" style="display:none">
+<div id="landingPage">
 
   <!-- NAV -->
   <nav class="lp-nav">
@@ -500,8 +481,7 @@
 <!-- CHART TOOLTIP -->
 <div id="chartTip"></div>
 
-<script src="api-client.js?v=2"></script>
-<script src="data.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="data.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

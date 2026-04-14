@@ -1,4 +1,4 @@
-﻿﻿/// ===== USER DROPDOWN =====
+﻿/// ===== USER DROPDOWN =====
 function toggleUserMenu() {
   const dd = document.getElementById('userDropdown');
   if (!dd) return;
@@ -2154,19 +2154,7 @@ function mensagens() {
   document.getElementById('msgOS').addEventListener('change', msgAtualizarTexto);
 }
 
-// Store de histórico de mensagens
-const MsgHistorico = {
-  all: () => { try { return JSON.parse(localStorage.getItem('of_msg_hist')) || []; } catch { return []; } },
-  add(item) {
-    const list = MsgHistorico.all();
-    item.id = Date.now();
-    list.push(item);
-    // Mantém só os últimos 100
-    if (list.length > 100) list.splice(0, list.length - 100);
-    localStorage.setItem('of_msg_hist', JSON.stringify(list));
-  },
-  clear() { localStorage.removeItem('of_msg_hist'); }
-};
+// Store de histórico de mensagens — definido em data.js
 
 function msgFiltrarClientes(q) {
   const ql = q.toLowerCase();
