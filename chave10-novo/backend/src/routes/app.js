@@ -181,32 +181,36 @@ router.get('/os', (req, res) => {
 
 router.post('/os', validateOS, (req, res) => {
   try {
-    const { cliente_id, veiculo_id, descricao, valor, observacao } = req.body;
+    const { cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, observacao, data } = req.body;
+    const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
+    const id = oid(req);
+    const count = db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ?").get(id).n;
+    const numero = String(count + 1).padStart(4, '0');
     const result = db.prepare(`
-      INSERT INTO ordens_servico (oficina_id, cliente_id, veiculo_id, descricao, valor, observacao)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(oid(req), cliente_id || null, veiculo_id || null, descricao, valor || 0, observacao || null);
-    res.status(201).json({ id: result.lastInsertRowid });
+      INSERT INTO ordens_servico (oficina_id, cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, valor, observacao, data, numero)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, cliente_id||null, veiculo_id||null, descricao, servicos||null, pecas||null, valor_mo||0, valor_pecas||0, valor, observacao||null, data||new Date().toISOString().split('T')[0], numero);
+    res.status(201).json({ id: result.lastInsertRowid, numero });
   } catch (err) {
     log.error('app_post_os', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
 
-router.put('/os/:id', validateOS, (req, res) => {
+router.put('/os/:id', (req, res) => {
   try {
-    const { descricao, valor, status, observacao, cliente_id, veiculo_id } = req.body;
+    const { descricao, servicos, pecas, valor_mo, valor_pecas, status, observacao, cliente_id, veiculo_id, data } = req.body;
     const statusValidos = ['em_andamento', 'finalizado'];
-    if (status && !statusValidos.includes(status)) {
-      return res.status(400).json({ error: 'Status inválido' });
-    }
+    if (status && !statusValidos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
+    const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
     db.prepare(`
       UPDATE ordens_servico SET
-        descricao = COALESCE(?, descricao), valor = COALESCE(?, valor),
-        status = COALESCE(?, status), observacao = COALESCE(?, observacao),
-        cliente_id = COALESCE(?, cliente_id), veiculo_id = COALESCE(?, veiculo_id)
-      WHERE id = ? AND oficina_id = ?
-    `).run(descricao, valor || null, status || null, observacao || null, cliente_id || null, veiculo_id || null, req.params.id, oid(req));
+        descricao=COALESCE(?,descricao), servicos=COALESCE(?,servicos), pecas=COALESCE(?,pecas),
+        valor_mo=COALESCE(?,valor_mo), valor_pecas=COALESCE(?,valor_pecas), valor=?,
+        status=COALESCE(?,status), observacao=COALESCE(?,observacao),
+        cliente_id=COALESCE(?,cliente_id), veiculo_id=COALESCE(?,veiculo_id), data=COALESCE(?,data)
+      WHERE id=? AND oficina_id=?
+    `).run(descricao,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req));
     res.json({ ok: true });
   } catch (err) {
     log.error('app_put_os', err);
@@ -236,6 +240,196 @@ router.delete('/os/:id', (req, res) => {
     log.error('app_delete_os', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
+});
+
+module.exports = router;
+
+// ─── LEMBRETES ───────────────────────────────────────────────
+router.get('/lembretes', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT l.*, v.modelo as veiculo_modelo, v.placa, c.nome as cliente_nome
+      FROM lembretes l
+      LEFT JOIN veiculos v ON v.id = l.veiculo_id
+      LEFT JOIN clientes c ON c.id = v.cliente_id
+      WHERE l.oficina_id = ? ORDER BY l.data_previsao ASC
+    `).all(oid(req));
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.post('/lembretes', (req, res) => {
+  try {
+    const { veiculo_id, tipo, descricao, data_previsao, km_previsao } = req.body;
+    if (!descricao) return res.status(400).json({ error: 'Descrição obrigatória' });
+    const r = db.prepare('INSERT INTO lembretes (oficina_id,veiculo_id,tipo,descricao,data_previsao,km_previsao) VALUES (?,?,?,?,?,?)')
+      .run(oid(req), veiculo_id||null, tipo||'outro', descricao, data_previsao||null, km_previsao||null);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.put('/lembretes/:id', (req, res) => {
+  try {
+    const { veiculo_id, tipo, descricao, data_previsao, km_previsao, visto } = req.body;
+    db.prepare('UPDATE lembretes SET veiculo_id=COALESCE(?,veiculo_id),tipo=COALESCE(?,tipo),descricao=COALESCE(?,descricao),data_previsao=COALESCE(?,data_previsao),km_previsao=COALESCE(?,km_previsao),visto=COALESCE(?,visto) WHERE id=? AND oficina_id=?')
+      .run(veiculo_id||null,tipo||null,descricao||null,data_previsao||null,km_previsao||null,visto!=null?visto:null,req.params.id,oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.delete('/lembretes/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM lembretes WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ─── ESTOQUE ─────────────────────────────────────────────────
+router.get('/estoque', (req, res) => {
+  try {
+    const { categoria } = req.query;
+    let q = 'SELECT * FROM estoque WHERE oficina_id=?';
+    const p = [oid(req)];
+    if (categoria) { q += ' AND categoria=?'; p.push(categoria); }
+    q += ' ORDER BY nome';
+    res.json(db.prepare(q).all(...p));
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.post('/estoque', (req, res) => {
+  try {
+    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs } = req.body;
+    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
+    const r = db.prepare('INSERT INTO estoque (oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .run(oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.put('/estoque/:id', (req, res) => {
+  try {
+    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs } = req.body;
+    db.prepare('UPDATE estoque SET nome=COALESCE(?,nome),categoria=COALESCE(?,categoria),tipo=COALESCE(?,tipo),marca=COALESCE(?,marca),aplicacao=COALESCE(?,aplicacao),quantidade=COALESCE(?,quantidade),estoque_min=COALESCE(?,estoque_min),preco=COALESCE(?,preco),data_compra=COALESCE(?,data_compra),obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
+      .run(nome||null,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,req.params.id,oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.delete('/estoque/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM estoque WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ─── DESPESAS ────────────────────────────────────────────────
+router.get('/despesas', (req, res) => {
+  try {
+    const { inicio, fim } = req.query;
+    let q = 'SELECT * FROM despesas WHERE oficina_id=?';
+    const p = [oid(req)];
+    if (inicio) { q += ' AND data>=?'; p.push(inicio); }
+    if (fim)    { q += ' AND data<=?'; p.push(fim); }
+    q += ' ORDER BY data DESC';
+    res.json(db.prepare(q).all(...p));
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.post('/despesas', (req, res) => {
+  try {
+    const { descricao, categoria, valor, data, vencimento, pago, obs } = req.body;
+    if (!descricao || !valor || !data) return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+    const r = db.prepare('INSERT INTO despesas (oficina_id,descricao,categoria,valor,data,vencimento,pago,obs) VALUES (?,?,?,?,?,?,?,?)')
+      .run(oid(req),descricao,categoria||'Outros',valor,data,vencimento||null,pago?1:0,obs||null);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.put('/despesas/:id', (req, res) => {
+  try {
+    const { descricao, categoria, valor, data, vencimento, pago, obs } = req.body;
+    db.prepare('UPDATE despesas SET descricao=COALESCE(?,descricao),categoria=COALESCE(?,categoria),valor=COALESCE(?,valor),data=COALESCE(?,data),vencimento=COALESCE(?,vencimento),pago=COALESCE(?,pago),obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
+      .run(descricao||null,categoria||null,valor||null,data||null,vencimento||null,pago!=null?pago:null,obs||null,req.params.id,oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.delete('/despesas/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM despesas WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ─── ORÇAMENTOS ──────────────────────────────────────────────
+router.get('/orcamentos', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT o.*, c.nome as cliente_nome, v.modelo as veiculo_modelo, v.placa
+      FROM orcamentos o
+      LEFT JOIN clientes c ON c.id = o.cliente_id
+      LEFT JOIN veiculos v ON v.id = o.veiculo_id
+      WHERE o.oficina_id=? ORDER BY o.id DESC
+    `).all(oid(req));
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.post('/orcamentos', (req, res) => {
+  try {
+    const { cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, status, validade, obs } = req.body;
+    const id = oid(req);
+    const count = db.prepare("SELECT COUNT(*) as n FROM orcamentos WHERE oficina_id=?").get(id).n;
+    const numero = 'ORC-' + String(count + 1).padStart(4, '0');
+    const r = db.prepare('INSERT INTO orcamentos (oficina_id,cliente_id,veiculo_id,numero,descricao,servicos,pecas,valor_mo,valor_pecas,status,validade,obs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(id,cliente_id||null,veiculo_id||null,numero,descricao||null,servicos||null,pecas||null,valor_mo||0,valor_pecas||0,status||'pendente',validade||null,obs||null);
+    res.status(201).json({ id: r.lastInsertRowid, numero });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.put('/orcamentos/:id', (req, res) => {
+  try {
+    const { descricao, servicos, pecas, valor_mo, valor_pecas, status, validade, obs, cliente_id, veiculo_id } = req.body;
+    db.prepare('UPDATE orcamentos SET descricao=COALESCE(?,descricao),servicos=COALESCE(?,servicos),pecas=COALESCE(?,pecas),valor_mo=COALESCE(?,valor_mo),valor_pecas=COALESCE(?,valor_pecas),status=COALESCE(?,status),validade=COALESCE(?,validade),obs=COALESCE(?,obs),cliente_id=COALESCE(?,cliente_id),veiculo_id=COALESCE(?,veiculo_id) WHERE id=? AND oficina_id=?')
+      .run(descricao||null,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,status||null,validade||null,obs||null,cliente_id||null,veiculo_id||null,req.params.id,oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.delete('/orcamentos/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM orcamentos WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+// ─── AGENDA ──────────────────────────────────────────────────
+router.get('/agenda', (req, res) => {
+  try {
+    const { data } = req.query;
+    let q = `SELECT a.*, c.nome as cliente_nome, v.modelo as veiculo_modelo FROM agenda a LEFT JOIN clientes c ON c.id=a.cliente_id LEFT JOIN veiculos v ON v.id=a.veiculo_id WHERE a.oficina_id=?`;
+    const p = [oid(req)];
+    if (data) { q += ' AND a.data=?'; p.push(data); }
+    q += ' ORDER BY a.data, a.hora';
+    res.json(db.prepare(q).all(...p));
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.post('/agenda', (req, res) => {
+  try {
+    const { cliente_id, veiculo_id, titulo, data, hora, descricao } = req.body;
+    if (!titulo || !data) return res.status(400).json({ error: 'Título e data obrigatórios' });
+    const r = db.prepare('INSERT INTO agenda (oficina_id,cliente_id,veiculo_id,titulo,data,hora,descricao) VALUES (?,?,?,?,?,?,?)')
+      .run(oid(req),cliente_id||null,veiculo_id||null,titulo,data,hora||null,descricao||null);
+    res.status(201).json({ id: r.lastInsertRowid });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+});
+
+router.delete('/agenda/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM agenda WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
 });
 
 module.exports = router;

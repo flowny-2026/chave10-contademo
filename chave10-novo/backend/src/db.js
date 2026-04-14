@@ -68,11 +68,86 @@ db.exec(`
     cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
     veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
     descricao TEXT NOT NULL,
+    servicos TEXT,
+    pecas TEXT,
+    valor_mo REAL DEFAULT 0,
+    valor_pecas REAL DEFAULT 0,
     valor REAL DEFAULT 0,
     status TEXT DEFAULT 'em_andamento'
       CHECK(status IN ('em_andamento','finalizado')),
     data TEXT DEFAULT (date('now')),
-    observacao TEXT
+    observacao TEXT,
+    numero TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS lembretes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE CASCADE,
+    tipo TEXT DEFAULT 'outro',
+    descricao TEXT NOT NULL,
+    data_previsao TEXT,
+    km_previsao TEXT,
+    visto INTEGER DEFAULT 0,
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS estoque (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    categoria TEXT DEFAULT 'peca',
+    tipo TEXT,
+    marca TEXT,
+    aplicacao TEXT,
+    quantidade INTEGER DEFAULT 0,
+    estoque_min INTEGER DEFAULT 0,
+    preco REAL DEFAULT 0,
+    data_compra TEXT,
+    obs TEXT,
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS despesas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+    descricao TEXT NOT NULL,
+    categoria TEXT DEFAULT 'Outros',
+    valor REAL NOT NULL,
+    data TEXT NOT NULL,
+    vencimento TEXT,
+    pago INTEGER DEFAULT 0,
+    obs TEXT,
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS orcamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
+    numero TEXT,
+    descricao TEXT,
+    servicos TEXT,
+    pecas TEXT,
+    valor_mo REAL DEFAULT 0,
+    valor_pecas REAL DEFAULT 0,
+    status TEXT DEFAULT 'pendente',
+    validade TEXT,
+    obs TEXT,
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS agenda (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
+    titulo TEXT NOT NULL,
+    data TEXT NOT NULL,
+    hora TEXT,
+    descricao TEXT,
+    criado_em TEXT DEFAULT (datetime('now'))
   );
 `);
 

@@ -54,15 +54,39 @@ function globalSearchHandler(q) {
 }
 
 // ===== AUTH =====
-function doLogin() {
+async function doLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value;
+
+  // Tenta autenticar no backend primeiro
+  try {
+    const data = await apiClient.login(user, pass);
+    if (data.token) {
+      stopLandingAnimations();
+      document.getElementById('loginScreen').classList.add('hidden');
+      showLoginLoader(function() {
+        document.getElementById('appShell').style.display = 'flex';
+        sessionStorage.setItem('of_auth', '1');
+        sessionStorage.setItem('of_mode', 'api'); // modo API
+        navigate('dashboard');
+        Notif.start();
+        history.pushState({ view: 'app', page: 'dashboard' }, '', '#app');
+      });
+      return;
+    }
+  } catch (err) {
+    // Backend indisponível ou credenciais erradas via API
+    // Tenta modo demo local
+  }
+
+  // Fallback: modo demo local (admin / 1234)
   if (user === 'admin' && pass === '1234') {
     stopLandingAnimations();
     document.getElementById('loginScreen').classList.add('hidden');
     showLoginLoader(function() {
       document.getElementById('appShell').style.display = 'flex';
       sessionStorage.setItem('of_auth', '1');
+      sessionStorage.setItem('of_mode', 'local'); // modo localStorage
       navigate('dashboard');
       Notif.start();
       history.pushState({ view: 'app', page: 'dashboard' }, '', '#app');
@@ -3559,6 +3583,15 @@ function stopLandingAnimations() {
   if (_lpScreenTimer) { clearInterval(_lpScreenTimer); _lpScreenTimer = null; }
   window.removeEventListener('scroll', lpParallax);
 }
+
+// ===== HELPER: resolve store (local síncrono ou API assíncrono) =====
+// Uso: resolve(Clientes.all()).then(lista => ...)
+function resolve(val) {
+  return val instanceof Promise ? val : Promise.resolve(val);
+}
+
+// Invalida todos os caches ao navegar (garante dados frescos)
+const _origNavigate = navigate;
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
