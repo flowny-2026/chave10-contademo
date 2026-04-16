@@ -1,17 +1,124 @@
 ﻿import { useEffect, useState } from 'react';
 import { api } from '../../api';
 
-const EMPTY = { cliente_id:'', veiculo_id:'', descricao:'', servicos:'', pecas:'', valor_mo:'', valor_pecas:'', data: new Date().toISOString().split('T')[0], status:'em_andamento', observacao:'' };
 const fmt = {
   currency: v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'),
   date: iso => { if(!iso) return '-'; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; },
 };
 const STATUS_CLASS = { em_andamento:'badge-orange', finalizado:'badge-green' };
 const STATUS_LABEL = { em_andamento:'Em andamento', finalizado:'Finalizado' };
+const PECA_EMPTY = { nome:'', qtd:'1', valor_unit:'' };
+
+function novaPeca() { return { ...PECA_EMPTY, id: Date.now() }; }
+
+function calcTotal(pecas, valor_mo) {
+  const totalPecas = pecas.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0);
+  return (parseFloat(valor_mo)||0) + totalPecas;
+}
 
 function Toast({ msg, type }) {
   if (!msg) return null;
   return <div className={`toast show ${type}`} style={{position:'fixed',bottom:24,right:24,zIndex:300}}>{msg}</div>;
+}
+
+// Gera HTML para impressão/PDF
+function gerarHTMLOS(os, clientes, veiculos, oficina) {
+  const c = clientes.find(x=>x.id===os.cliente_id);
+  const v = veiculos.find(x=>x.id===os.veiculo_id);
+  const pecas = os.pecas_itens || [];
+  const totalPecas = pecas.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0);
+  const total = (parseFloat(os.valor_mo)||0) + totalPecas;
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+  <title>OS #${String(os.id).padStart(4,'0')}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:32px}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #1E3A5F}
+    .brand{font-size:24px;font-weight:800;color:#1E3A5F}.brand span{color:#F97316}
+    .os-num{font-size:20px;font-weight:700;color:#1E3A5F}
+    .section{margin-bottom:20px}
+    .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6B7280;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #E5E7EB}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+    .field label{font-size:11px;color:#9CA3AF;display:block;margin-bottom:2px}
+    .field span{font-size:13px;color:#1a1a1a}
+    table{width:100%;border-collapse:collapse;margin-top:4px}
+    th{background:#F3F4F6;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6B7280}
+    td{padding:8px 10px;border-bottom:1px solid #F3F4F6;font-size:13px}
+    .total-row{display:flex;justify-content:space-between;padding:8px 10px;font-weight:700}
+    .total-final{background:#1E3A5F;color:#fff;border-radius:6px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .total-final .val{font-size:20px;font-weight:800;color:#F97316}
+    .status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;background:${os.status==='finalizado'?'#f0fdf4':'#fff7ed'};color:${os.status==='finalizado'?'#16a34a':'#d97706'}}
+    .footer{margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;text-align:center;font-size:11px;color:#9CA3AF}
+    @media print{body{padding:16px}}
+  </style></head><body>
+  <div class="header">
+    <div>
+      ${oficina?.logo?`<img src="${oficina.logo}" style="max-height:60px;max-width:180px;object-fit:contain;margin-bottom:4px" alt="Logo" /><br/>`:``}
+      <div class="brand">${oficina?.logo?'':' Chave <span>10</span>'}</div>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:2px">${oficina?.nome||''}</div>
+      ${oficina?.endereco?`<div style="font-size:11px;color:#9CA3AF">${oficina.endereco}</div>`:''}
+      ${oficina?.telefone?`<div style="font-size:11px;color:#9CA3AF">Tel: ${oficina.telefone}</div>`:''}
+    </div>
+    <div style="text-align:right">
+      <div class="os-num">OS #${String(os.id).padStart(4,'0')}</div>
+      <div style="font-size:12px;color:#6B7280;margin-top:2px">Data: ${fmt.date(os.data)}</div>
+      <div style="margin-top:4px"><span class="status">${STATUS_LABEL[os.status]||os.status}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Cliente</div>
+    <div class="grid-2">
+      <div class="field"><label>Nome</label><span>${c?.nome||'—'}</span></div>
+      <div class="field"><label>Telefone</label><span>${c?.telefone||'—'}</span></div>
+      <div class="field"><label>Email</label><span>${c?.email||'—'}</span></div>
+      <div class="field"><label>Endereço</label><span>${c?.endereco||'—'}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Veículo</div>
+    <div class="grid-2">
+      <div class="field"><label>Veículo</label><span>${v?`${v.marca} ${v.modelo}`:'—'}</span></div>
+      <div class="field"><label>Placa</label><span>${v?.placa||'—'}</span></div>
+      <div class="field"><label>Ano</label><span>${v?.ano||'—'}</span></div>
+      <div class="field"><label>KM</label><span>${v?.km?parseInt(v.km).toLocaleString('pt-BR')+' km':'—'}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Problema relatado</div>
+    <p style="background:#F9FAFB;padding:10px 12px;border-radius:6px">${os.descricao||'—'}</p>
+  </div>
+
+  ${os.servicos?`<div class="section"><div class="section-title">Serviços realizados</div><p style="background:#F9FAFB;padding:10px 12px;border-radius:6px">${os.servicos}</p></div>`:''}
+
+  <div class="section">
+    <div class="section-title">Peças utilizadas</div>
+    ${pecas.length ? `
+    <table>
+      <thead><tr><th>Descrição</th><th style="text-align:center">Qtd</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Subtotal</th></tr></thead>
+      <tbody>
+        ${pecas.map(p=>`<tr><td>${p.nome||'—'}</td><td style="text-align:center">${p.qtd||1}</td><td style="text-align:right">${fmt.currency(p.valor_unit)}</td><td style="text-align:right">${fmt.currency((parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1))}</td></tr>`).join('')}
+      </tbody>
+    </table>` : '<p style="color:#9CA3AF;font-size:12px">Nenhuma peça registrada</p>'}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Valores</div>
+    <div class="total-row"><span>Mão de obra</span><span>${fmt.currency(os.valor_mo)}</span></div>
+    <div class="total-row"><span>Total peças</span><span>${fmt.currency(totalPecas)}</span></div>
+    <div class="total-final"><span style="font-size:15px;font-weight:700">TOTAL</span><span class="val">${fmt.currency(total)}</span></div>
+  </div>
+
+  ${os.observacao?`<div class="section"><div class="section-title">Observações</div><p style="background:#F9FAFB;padding:10px 12px;border-radius:6px">${os.observacao}</p></div>`:''}
+
+  <div class="footer">
+    ${oficina?.nome||'Chave 10'} ${oficina?.telefone?'· '+oficina.telefone:''} ${oficina?.endereco?'· '+oficina.endereco:''}<br/>
+    Documento gerado em ${new Date().toLocaleDateString('pt-BR')}
+  </div>
+  </body></html>`;
 }
 
 export default function AppOS() {
@@ -21,15 +128,12 @@ export default function AppOS() {
   const [search, setSearch]     = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [modal, setModal]       = useState(null);
-  const [form, setForm]         = useState(EMPTY);
+  const [form, setForm]         = useState({ cliente_id:'', veiculo_id:'', descricao:'', servicos:'', pecas_itens:[novaPeca()], valor_mo:'', data:new Date().toISOString().split('T')[0], status:'em_andamento', observacao:'' });
   const [editing, setEditing]   = useState(null);
   const [viewing, setViewing]   = useState(null);
   const [toast, setToast]       = useState({ msg:'', type:'' });
 
-  function showToast(msg, type='success') {
-    setToast({ msg, type });
-    setTimeout(() => setToast({ msg:'', type:'' }), 3000);
-  }
+  function showToast(msg, type='success') { setToast({msg,type}); setTimeout(()=>setToast({msg:'',type:''}),3000); }
 
   async function load(status) {
     try { const data = await api.app.os.list(status||undefined); setOsList(data); }
@@ -38,30 +142,36 @@ export default function AppOS() {
 
   useEffect(() => {
     Promise.all([api.app.clientes.list(), api.app.veiculos.list()])
-      .then(([c,v]) => { setClientes(c); setVeiculos(v); }).catch(()=>{});
+      .then(([c,v])=>{ setClientes(c); setVeiculos(v); }).catch(()=>{});
     load();
   }, []);
 
-  function openCreate() { setForm({...EMPTY, data: new Date().toISOString().split('T')[0]}); setEditing(null); setModal('form'); }
+  function openCreate() {
+    setForm({ cliente_id:'', veiculo_id:'', descricao:'', servicos:'', pecas_itens:[novaPeca()], valor_mo:'', data:new Date().toISOString().split('T')[0], status:'em_andamento', observacao:'' });
+    setEditing(null); setModal('form');
+  }
+
   function openEdit(os) {
-    setForm({ cliente_id:os.cliente_id||'', veiculo_id:os.veiculo_id||'', descricao:os.descricao||'',
-      servicos:os.servicos||'', pecas:os.pecas||'', valor_mo:os.valor_mo||'', valor_pecas:os.valor_pecas||'',
-      data:os.data||new Date().toISOString().split('T')[0], status:os.status||'em_andamento', observacao:os.observacao||'' });
+    const pecas = os.pecas_itens && os.pecas_itens.length ? os.pecas_itens : [novaPeca()];
+    setForm({ cliente_id:os.cliente_id||'', veiculo_id:os.veiculo_id||'', descricao:os.descricao||'', servicos:os.servicos||'', pecas_itens:pecas.map(p=>({...p,id:p.id||Date.now()})), valor_mo:os.valor_mo||'', data:os.data||new Date().toISOString().split('T')[0], status:os.status||'em_andamento', observacao:os.observacao||'' });
     setEditing(os.id); setModal('form');
   }
 
+  function setPeca(id, field, val) { setForm(f=>({...f, pecas_itens: f.pecas_itens.map(p=>p.id===id?{...p,[field]:val}:p)})); }
+  function addPeca() { setForm(f=>({...f, pecas_itens:[...f.pecas_itens, novaPeca()]})); }
+  function removePeca(id) { setForm(f=>({...f, pecas_itens: f.pecas_itens.filter(p=>p.id!==id)})); }
+
   async function save(e) {
     e.preventDefault();
-    if (!form.descricao.trim()) { showToast('Problema/descrição é obrigatório', 'error'); return; }
+    if (!form.descricao.trim()) { showToast('Problema/descrição é obrigatório','error'); return; }
     try {
-      const payload = { ...form, cliente_id:form.cliente_id||null, veiculo_id:form.veiculo_id||null,
-        valor_mo:parseFloat(form.valor_mo)||0, valor_pecas:parseFloat(form.valor_pecas)||0,
-        valor:(parseFloat(form.valor_mo)||0)+(parseFloat(form.valor_pecas)||0) };
+      const pecasValidas = form.pecas_itens.filter(p=>p.nome.trim());
+      const totalPecas = pecasValidas.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0);
+      const payload = { ...form, cliente_id:form.cliente_id||null, veiculo_id:form.veiculo_id||null, valor_mo:parseFloat(form.valor_mo)||0, valor_pecas:totalPecas, valor:(parseFloat(form.valor_mo)||0)+totalPecas, pecas_itens:pecasValidas, pecas: pecasValidas.map(p=>`${p.qtd}x ${p.nome} (${fmt.currency(p.valor_unit)})`).join('\n') };
       if (editing) await api.app.os.update(editing, payload);
       else await api.app.os.create(payload);
-      setModal(null); load(statusFiltro);
-      showToast(editing ? 'OS atualizada!' : 'Ordem de serviço salva!');
-    } catch (err) { showToast(err.error||'Erro ao salvar', 'error'); }
+      setModal(null); load(statusFiltro); showToast(editing?'OS atualizada!':'Ordem de serviço salva!');
+    } catch (err) { showToast(err.error||'Erro ao salvar','error'); }
   }
 
   async function finalizar(id) { await api.app.os.setStatus(id,'finalizado'); load(statusFiltro); setModal(null); showToast('OS finalizada!'); }
@@ -71,10 +181,44 @@ export default function AppOS() {
     await api.app.os.remove(id); load(statusFiltro); showToast('OS excluída');
   }
 
+  function imprimir(os) {
+    const oficina = (() => { try { return JSON.parse(localStorage.getItem('c10_oficina'))||{}; } catch { return {}; } })();
+    const html = gerarHTMLOS(os, clientes, veiculos, oficina);
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  }
+
+  function enviarWhatsApp(os) {
+    const c = clientes.find(x=>x.id===os.cliente_id);
+    if (!c?.telefone) { showToast('Cliente sem telefone','error'); return; }
+    const pecas = os.pecas_itens || [];
+    const totalPecas = pecas.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0);
+    const total = (parseFloat(os.valor_mo)||0)+totalPecas;
+    const v = veiculos.find(x=>x.id===os.veiculo_id);
+    const oficina = (() => { try { return JSON.parse(localStorage.getItem('c10_oficina'))||{}; } catch { return {}; } })();
+    let msg = `*OS #${String(os.id).padStart(4,'0')} — ${oficina.nome||'Chave 10'}*\n`;
+    msg += `Data: ${fmt.date(os.data)}\n`;
+    msg += `Veículo: ${v?`${v.marca} ${v.modelo} — ${v.placa}`:'—'}\n\n`;
+    msg += `*Problema:* ${os.descricao}\n`;
+    if (os.servicos) msg += `*Serviços:* ${os.servicos}\n`;
+    if (pecas.length) {
+      msg += `\n*Peças utilizadas:*\n`;
+      pecas.filter(p=>p.nome).forEach(p=>{ msg += `• ${p.qtd}x ${p.nome} — ${fmt.currency((parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1))}\n`; });
+    }
+    msg += `\n*Mão de obra:* ${fmt.currency(os.valor_mo)}`;
+    msg += `\n*Total peças:* ${fmt.currency(totalPecas)}`;
+    msg += `\n*TOTAL: ${fmt.currency(total)}*`;
+    const tel = c.telefone.replace(/\D/g,'');
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
   const veiculosFiltrados = form.cliente_id ? veiculos.filter(v=>String(v.cliente_id)===String(form.cliente_id)) : veiculos;
-  const listaFiltrada = search
-    ? osList.filter(o=>(o.cliente_nome||'').toLowerCase().includes(search.toLowerCase())||(o.veiculo_modelo||'').toLowerCase().includes(search.toLowerCase())||String(o.id).includes(search)||(o.descricao||'').toLowerCase().includes(search.toLowerCase()))
-    : osList;
+  const listaFiltrada = search ? osList.filter(o=>(o.cliente_nome||'').toLowerCase().includes(search.toLowerCase())||(o.veiculo_modelo||'').toLowerCase().includes(search.toLowerCase())||String(o.id).includes(search)||(o.descricao||'').toLowerCase().includes(search.toLowerCase())) : osList;
+
+  const totalForm = calcTotal(form.pecas_itens, form.valor_mo);
 
   return (
     <div>
@@ -111,8 +255,10 @@ export default function AppOS() {
                       <td><strong>{fmt.currency(total)}</strong></td>
                       <td><span className={`badge ${STATUS_CLASS[os.status]||'badge-gray'}`}>{STATUS_LABEL[os.status]||os.status}</span></td>
                       <td>
-                        <div style={{display:'flex',gap:6}}>
-                          <button className="btn btn-outline btn-sm" onClick={()=>{setViewing(os);setModal('ver');}}>👁️ Ver</button>
+                        <div style={{display:'flex',gap:4}}>
+                          <button className="btn btn-outline btn-sm" onClick={()=>{setViewing(os);setModal('ver');}}>👁️</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=>imprimir(os)} title="Imprimir">🖨️</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=>enviarWhatsApp(os)} title="WhatsApp">💬</button>
                           <button className="btn btn-outline btn-sm" onClick={()=>openEdit(os)}>✏️</button>
                           <button className="btn btn-outline btn-sm" onClick={()=>remove(os.id)}>🗑️</button>
                         </div>
@@ -128,11 +274,12 @@ export default function AppOS() {
         )}
       </div>
 
+      {/* Modal Form */}
       {modal==='form' && (
         <div className="modal-overlay open">
-          <div className="modal" style={{maxWidth:640}}>
+          <div className="modal" style={{maxWidth:680}}>
             <div className="modal-header">
-              <h2>{editing ? `Editar OS #${String(editing).padStart(4,'0')}` : 'Nova Ordem de Serviço'}</h2>
+              <h2>{editing?`Editar OS #${String(editing).padStart(4,'0')}`:'Nova Ordem de Serviço'}</h2>
               <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
             </div>
             <div className="modal-body">
@@ -154,9 +301,38 @@ export default function AppOS() {
                   </div>
                   <div className="form-group full"><label>Problema relatado *</label><textarea value={form.descricao} onChange={e=>setForm(f=>({...f,descricao:e.target.value}))} placeholder="Descreva o problema..." required /></div>
                   <div className="form-group full"><label>Serviços realizados</label><textarea value={form.servicos} onChange={e=>setForm(f=>({...f,servicos:e.target.value}))} placeholder="Liste os serviços feitos..." /></div>
-                  <div className="form-group full"><label>Peças utilizadas</label><textarea value={form.pecas} onChange={e=>setForm(f=>({...f,pecas:e.target.value}))} placeholder="Liste as peças..." /></div>
-                  <div className="form-group"><label>Valor mão de obra (R$)</label><input type="number" step="0.01" min="0" value={form.valor_mo} onChange={e=>setForm(f=>({...f,valor_mo:e.target.value}))} placeholder="0,00" /></div>
-                  <div className="form-group"><label>Valor das peças (R$)</label><input type="number" step="0.01" min="0" value={form.valor_pecas} onChange={e=>setForm(f=>({...f,valor_pecas:e.target.value}))} placeholder="0,00" /></div>
+                </div>
+
+                {/* Peças detalhadas */}
+                <div style={{marginTop:16,marginBottom:16}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                    <label style={{fontWeight:700,fontSize:13,color:'var(--gray-700)'}}>🔩 Peças utilizadas</label>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={addPeca}>+ Adicionar peça</button>
+                  </div>
+                  <div style={{background:'var(--gray-50)',borderRadius:'var(--r-sm)',overflow:'hidden',border:'1px solid var(--gray-200)'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 70px 110px 30px',gap:0,padding:'6px 10px',background:'var(--gray-100)',fontSize:11,fontWeight:700,color:'var(--gray-500)',textTransform:'uppercase',letterSpacing:'.5px'}}>
+                      <span>Descrição</span><span style={{textAlign:'center'}}>Qtd</span><span style={{textAlign:'right'}}>Valor unit.</span><span/>
+                    </div>
+                    {form.pecas_itens.map((p,i)=>(
+                      <div key={p.id} style={{display:'grid',gridTemplateColumns:'1fr 70px 110px 30px',gap:4,padding:'6px 10px',borderTop:'1px solid var(--gray-200)'}}>
+                        <input value={p.nome} onChange={e=>setPeca(p.id,'nome',e.target.value)} placeholder="Ex: Filtro de óleo Bosch" style={{padding:'6px 8px',fontSize:12}} />
+                        <input type="number" min="1" value={p.qtd} onChange={e=>setPeca(p.id,'qtd',e.target.value)} style={{padding:'6px 8px',fontSize:12,textAlign:'center'}} />
+                        <input type="number" step="0.01" min="0" value={p.valor_unit} onChange={e=>setPeca(p.id,'valor_unit',e.target.value)} placeholder="0,00" style={{padding:'6px 8px',fontSize:12,textAlign:'right'}} />
+                        <button type="button" onClick={()=>removePeca(p.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--danger)',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}} disabled={form.pecas_itens.length===1}>×</button>
+                      </div>
+                    ))}
+                    <div style={{display:'flex',justifyContent:'flex-end',padding:'8px 10px',borderTop:'1px solid var(--gray-200)',fontSize:12,fontWeight:600,color:'var(--gray-600)'}}>
+                      Total peças: <strong style={{marginLeft:8,color:'var(--gray-900)'}}>{fmt.currency(form.pecas_itens.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0))}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group"><label>Mão de obra (R$)</label><input type="number" step="0.01" min="0" value={form.valor_mo} onChange={e=>setForm(f=>({...f,valor_mo:e.target.value}))} placeholder="0,00" /></div>
+                  <div className="form-group">
+                    <label>Total geral</label>
+                    <div style={{padding:'10px 13px',background:'var(--brand-light)',borderRadius:'var(--r-sm)',fontFamily:'Poppins,sans-serif',fontSize:16,fontWeight:800,color:'var(--brand)'}}>{fmt.currency(totalForm)}</div>
+                  </div>
                   <div className="form-group"><label>Data</label><input type="date" value={form.data} onChange={e=>setForm(f=>({...f,data:e.target.value}))} /></div>
                   <div className="form-group">
                     <label>Status</label>
@@ -165,7 +341,9 @@ export default function AppOS() {
                       <option value="finalizado">✅ Finalizado</option>
                     </select>
                   </div>
+                  <div className="form-group full"><label>Observações</label><input value={form.observacao} onChange={e=>setForm(f=>({...f,observacao:e.target.value}))} placeholder="Observações adicionais..." /></div>
                 </div>
+
                 <div className="form-actions">
                   <button type="button" className="btn btn-outline" onClick={()=>setModal(null)}>Cancelar</button>
                   <button type="submit" className="btn btn-primary">💾 Salvar OS</button>
@@ -176,29 +354,53 @@ export default function AppOS() {
         </div>
       )}
 
+      {/* Modal Ver */}
       {modal==='ver' && viewing && (()=>{
-        const total = parseFloat(viewing.valor_mo||0)+parseFloat(viewing.valor_pecas||0)||parseFloat(viewing.valor||0);
+        const pecas = viewing.pecas_itens || [];
+        const totalPecas = pecas.reduce((s,p)=>s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1),0);
+        const total = (parseFloat(viewing.valor_mo)||0)+totalPecas||parseFloat(viewing.valor||0);
         return (
           <div className="modal-overlay open">
-            <div className="modal" style={{maxWidth:580}}>
+            <div className="modal" style={{maxWidth:620}}>
               <div className="modal-header">
                 <h2>OS #{String(viewing.id).padStart(4,'0')}</h2>
                 <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
               </div>
               <div className="modal-body">
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-                  {[{l:'Cliente',v:viewing.cliente_nome||'—'},{l:'Telefone',v:viewing.cliente_telefone||'—'},{l:'Veículo',v:viewing.veiculo_modelo||'—'},{l:'Placa',v:viewing.placa||'—'},{l:'Data',v:fmt.date(viewing.data)},{l:'Status',v:<span className={`badge ${STATUS_CLASS[viewing.status]||'badge-gray'}`}>{STATUS_LABEL[viewing.status]||viewing.status}</span>}].map(item=>(
+                  {[{l:'Cliente',v:viewing.cliente_nome||'—'},{l:'Veículo',v:viewing.veiculo_modelo||'—'},{l:'Placa',v:viewing.placa||'—'},{l:'Data',v:fmt.date(viewing.data)},{l:'Status',v:<span className={`badge ${STATUS_CLASS[viewing.status]||'badge-gray'}`}>{STATUS_LABEL[viewing.status]||viewing.status}</span>},{l:'Observação',v:viewing.observacao||'—'}].map(item=>(
                     <div key={item.l}><div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:3}}>{item.l}</div><div style={{fontSize:13.5,color:'var(--gray-800)'}}>{item.v}</div></div>
                   ))}
                 </div>
-                {[{t:'Problema relatado',v:viewing.descricao},{t:'Serviços realizados',v:viewing.servicos},{t:'Peças utilizadas',v:viewing.pecas}].filter(s=>s.v).map(s=>(
+                {[{t:'Problema relatado',v:viewing.descricao},{t:'Serviços realizados',v:viewing.servicos}].filter(s=>s.v).map(s=>(
                   <div key={s.t} style={{marginBottom:12}}>
                     <div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:6}}>{s.t}</div>
                     <div style={{fontSize:13.5,color:'var(--gray-700)',background:'var(--gray-50)',padding:'10px 12px',borderRadius:'var(--r-sm)'}}>{s.v}</div>
                   </div>
                 ))}
+
+                {/* Tabela de peças */}
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:6}}>Peças utilizadas</div>
+                  {pecas.filter(p=>p.nome).length ? (
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                      <thead><tr style={{background:'var(--gray-50)'}}><th style={{padding:'7px 10px',textAlign:'left',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Descrição</th><th style={{padding:'7px 10px',textAlign:'center',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Qtd</th><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Unit.</th><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Subtotal</th></tr></thead>
+                      <tbody>
+                        {pecas.filter(p=>p.nome).map((p,i)=>(
+                          <tr key={i} style={{borderBottom:'1px solid var(--gray-100)'}}>
+                            <td style={{padding:'7px 10px'}}>{p.nome}</td>
+                            <td style={{padding:'7px 10px',textAlign:'center'}}>{p.qtd||1}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right'}}>{fmt.currency(p.valor_unit)}</td>
+                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{fmt.currency((parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : <p style={{fontSize:13,color:'var(--gray-400)'}}>Nenhuma peça registrada</p>}
+                </div>
+
                 <div style={{display:'flex',gap:12,marginBottom:12}}>
-                  {[{l:'Mão de obra',v:viewing.valor_mo},{l:'Peças',v:viewing.valor_pecas}].map(item=>(
+                  {[{l:'Mão de obra',v:viewing.valor_mo},{l:'Total peças',v:totalPecas}].map(item=>(
                     <div key={item.l} style={{flex:1,background:'var(--gray-50)',padding:12,borderRadius:'var(--r-sm)',textAlign:'center'}}>
                       <div style={{fontSize:11,color:'var(--gray-400)',marginBottom:4}}>{item.l.toUpperCase()}</div>
                       <div style={{fontSize:18,fontWeight:700}}>{fmt.currency(item.v)}</div>
@@ -211,6 +413,8 @@ export default function AppOS() {
                 </div>
                 <div className="form-actions">
                   <button className="btn btn-outline" onClick={()=>setModal(null)}>Fechar</button>
+                  <button className="btn btn-outline" onClick={()=>imprimir(viewing)}>🖨️ Imprimir</button>
+                  <button className="btn btn-outline" onClick={()=>enviarWhatsApp(viewing)}>💬 WhatsApp</button>
                   <button className="btn btn-primary" onClick={()=>openEdit(viewing)}>✏️ Editar</button>
                   {viewing.status==='em_andamento'&&<button className="btn btn-success" onClick={()=>finalizar(viewing.id)}>✅ Finalizar</button>}
                   {viewing.status==='finalizado'&&<button className="btn btn-outline" onClick={()=>reabrir(viewing.id)}>↩ Reabrir</button>}

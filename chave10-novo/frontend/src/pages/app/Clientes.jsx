@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 
-const EMPTY = { nome: '', telefone: '', email: '', obs: '' };
+const EMPTY = { nome: '', telefone: '', email: '', obs: '', endereco: '' };
 
 function Toast({ msg, type }) {
   if (!msg) return null;
@@ -32,7 +32,7 @@ export default function AppClientes() {
 
   function openCreate() { setForm(EMPTY); setEditing(null); setModal(true); }
   function openEdit(c) {
-    setForm({ nome: c.nome || '', telefone: c.telefone || '', email: c.email || '', obs: c.obs || '' });
+    setForm({ nome: c.nome || '', telefone: c.telefone || '', email: c.email || '', obs: c.obs || '', endereco: c.endereco || '' });
     setEditing(c.id);
     setModal(true);
   }
@@ -137,6 +137,10 @@ export default function AppClientes() {
                   <div className="form-group">
                     <label>Email</label>
                     <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplo.com" />
+                  </div>
+                  <div className="form-group full">
+                    <label>Endereço</label>
+                    <input value={form.endereco} onChange={e => setForm(f => ({ ...f, endereco: e.target.value }))} placeholder="Rua, número, bairro, cidade" />
                   </div>
                   <div className="form-group full">
                     <label>Observações</label>

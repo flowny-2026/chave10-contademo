@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import BarcodeScanner from '../../components/BarcodeScanner';
 
 const fmt = { currency: v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.') };
 const EMPTY = { nome:'', categoria:'peca', tipo:'', marca:'', aplicacao:'', quantidade:'', estoque_min:'', preco:'', data_compra:'', obs:'' };
@@ -18,6 +19,7 @@ export default function AppEstoque() {
   const [modal, setModal]     = useState(false);
   const [form, setForm]       = useState(EMPTY);
   const [editing, setEditing] = useState(null);
+  const [scanner, setScanner] = useState(false);
   const [toast, setToast]     = useState({msg:'',type:''});
 
   function showToast(msg, type='success') { setToast({msg,type}); setTimeout(()=>setToast({msg:'',type:''}),3000); }
@@ -34,13 +36,28 @@ export default function AppEstoque() {
   function openCreate(cat='peca') { setForm({...EMPTY,categoria:cat}); setEditing(null); setModal(true); }
   function openEdit(i) { setForm({nome:i.nome||'',categoria:i.categoria||'peca',tipo:i.tipo||'',marca:i.marca||'',aplicacao:i.aplicacao||'',quantidade:i.quantidade||'',estoque_min:i.estoque_min||'',preco:i.preco||'',data_compra:i.data_compra||'',obs:i.obs||''}); setEditing(i.id); setModal(true); }
 
+  // Trata código de barras detectado — busca item existente ou pré-preenche novo
+  function handleBarcode(codigo) {
+    setScanner(false);
+    const existente = itens.find(i => i.codigo_barras === codigo);
+    if (existente) {
+      openEdit(existente);
+      showToast(`Item encontrado: ${existente.nome}`);
+    } else {
+      setForm({...EMPTY, categoria:'peca', codigo_barras: codigo});
+      setEditing(null);
+      setModal(true);
+      showToast(`Código ${codigo} — cadastre o item`, 'success');
+    }
+  }
+
   async function save(e) {
     e.preventDefault();
     if (!form.nome.trim()) { showToast('Nome é obrigatório','error'); return; }
     try {
       const url = editing ? `/api/app/estoque/${editing}` : '/api/app/estoque';
       const method = editing ? 'PUT' : 'POST';
-      await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({...form,quantidade:parseInt(form.quantidade)||0,estoque_min:parseInt(form.estoque_min)||0,preco:parseFloat(form.preco)||0})});
+      await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({...form,quantidade:parseInt(form.quantidade)||0,estoque_min:parseInt(form.estoque_min)||0,preco:parseFloat(form.preco)||0,codigo_barras:form.codigo_barras||null})});
       setModal(false); load(); showToast(editing?'Item atualizado!':'Item salvo!');
     } catch { showToast('Erro ao salvar','error'); }
   }
@@ -74,6 +91,10 @@ export default function AppEstoque() {
         <div style={{display:'flex',gap:8}}>
           <button className={`btn ${view==='patrimonio'?'btn-primary':'btn-outline'} btn-sm`} onClick={()=>setView('patrimonio')}>📊 Patrimônio</button>
           <button className={`btn ${view==='lista'?'btn-primary':'btn-outline'} btn-sm`} onClick={()=>setView('lista')}>📋 Lista</button>
+          <button className="btn btn-outline" onClick={()=>setScanner(true)} title="Ler código de barras">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/></svg>
+            Scanner
+          </button>
           <button className="btn btn-outline" onClick={()=>openCreate('ferramenta')}>+ Ferramenta</button>
           <button className="btn btn-primary" onClick={()=>openCreate('peca')}>+ Peça</button>
         </div>
@@ -246,9 +267,17 @@ export default function AppEstoque() {
                     </div>
                   </div>
                   <div className="form-group full"><label>Nome *</label><input value={form.nome} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Ex: Filtro de óleo, Chave de impacto..." required autoFocus /></div>
+                  <div className="form-group">
+                    <label>Código de barras</label>
+                    <div style={{display:'flex',gap:6}}>
+                      <input value={form.codigo_barras||''} onChange={e=>setForm(f=>({...f,codigo_barras:e.target.value}))} placeholder="Ex: 7891234567890" style={{flex:1}} />
+                      <button type="button" className="btn btn-outline btn-sm" onClick={()=>setScanner(true)} title="Ler código de barras">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/></svg>
+                      </button>
+                    </div>
+                  </div>
                   <div className="form-group"><label>Tipo</label><input value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} placeholder={form.categoria==='peca'?'Ex: Filtro, Correia...':'Ex: Elétrica, Manual...'} /></div>
-                  <div className="form-group"><label>Marca</label><input value={form.marca} onChange={e=>setForm(f=>({...f,marca:e.target.value}))} placeholder="Ex: Bosch, NGK..." /></div>
-                  {form.categoria==='peca' && <>
+                  <div className="form-group"><label>Marca</label><input value={form.marca} onChange={e=>setForm(f=>({...f,marca:e.target.value}))} placeholder="Ex: Bosch, NGK..." /></div>                  {form.categoria==='peca' && <>
                     <div className="form-group full"><label>Aplicação</label><input value={form.aplicacao} onChange={e=>setForm(f=>({...f,aplicacao:e.target.value}))} placeholder="Ex: Motores 1.0 flex..." /></div>
                     <div className="form-group"><label>Quantidade em estoque</label><input type="number" min="0" value={form.quantidade} onChange={e=>setForm(f=>({...f,quantidade:e.target.value}))} placeholder="0" /></div>
                     <div className="form-group"><label>Estoque mínimo</label><input type="number" min="0" value={form.estoque_min} onChange={e=>setForm(f=>({...f,estoque_min:e.target.value}))} placeholder="Ex: 2" /></div>
@@ -266,6 +295,7 @@ export default function AppEstoque() {
           </div>
         </div>
       )}
+      {scanner && <BarcodeScanner onDetected={handleBarcode} onClose={()=>setScanner(false)} />}
       <Toast msg={toast.msg} type={toast.type} />
     </div>
   );

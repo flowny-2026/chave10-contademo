@@ -71,9 +71,9 @@ router.get('/clientes', (req, res) => {
 
 router.post('/clientes', validateCliente, (req, res) => {
   try {
-    const { nome, telefone, email, obs } = req.body;
-    const result = db.prepare('INSERT INTO clientes (oficina_id, nome, telefone, email, obs) VALUES (?, ?, ?, ?, ?)').run(oid(req), nome, telefone||null, email||null, obs||null);
-    res.status(201).json({ id: result.lastInsertRowid, nome, telefone, email, obs });
+    const { nome, telefone, email, obs, endereco } = req.body;
+    const result = db.prepare('INSERT INTO clientes (oficina_id, nome, telefone, email, obs, endereco) VALUES (?, ?, ?, ?, ?, ?)').run(oid(req), nome, telefone||null, email||null, obs||null, endereco||null);
+    res.status(201).json({ id: result.lastInsertRowid, nome, telefone, email, obs, endereco });
   } catch (err) {
     log.error('app_post_cliente', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -82,9 +82,9 @@ router.post('/clientes', validateCliente, (req, res) => {
 
 router.put('/clientes/:id', validateCliente, (req, res) => {
   try {
-    const { nome, telefone, email, obs } = req.body;
-    db.prepare('UPDATE clientes SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone), email=COALESCE(?,email), obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
-      .run(nome, telefone||null, email||null, obs||null, req.params.id, oid(req));
+    const { nome, telefone, email, obs, endereco } = req.body;
+    db.prepare('UPDATE clientes SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone), email=COALESCE(?,email), obs=COALESCE(?,obs), endereco=COALESCE(?,endereco) WHERE id=? AND oficina_id=?')
+      .run(nome, telefone||null, email||null, obs||null, endereco||null, req.params.id, oid(req));
     res.json({ ok: true });
   } catch (err) {
     log.error('app_put_cliente', err);
@@ -160,21 +160,16 @@ router.get('/os', (req, res) => {
   try {
     const { status } = req.query;
     const statusValidos = ['em_andamento', 'finalizado'];
-    if (status && !statusValidos.includes(status)) {
-      return res.status(400).json({ error: 'Status inválido' });
-    }
-    let q = `
-      SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone,
-             v.modelo as veiculo_modelo, v.placa
-      FROM ordens_servico os
-      LEFT JOIN clientes c ON c.id = os.cliente_id
-      LEFT JOIN veiculos v ON v.id = os.veiculo_id
-      WHERE os.oficina_id = ?
-    `;
+    if (status && !statusValidos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
+    let q = `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.endereco as cliente_endereco, v.modelo as veiculo_modelo, v.placa, v.marca as veiculo_marca, v.ano as veiculo_ano, v.km as veiculo_km FROM ordens_servico os LEFT JOIN clientes c ON c.id = os.cliente_id LEFT JOIN veiculos v ON v.id = os.veiculo_id WHERE os.oficina_id = ?`;
     const params = [oid(req)];
     if (status) { q += ' AND os.status = ?'; params.push(status); }
     q += ' ORDER BY os.id DESC';
-    res.json(db.prepare(q).all(...params));
+    const rows = db.prepare(q).all(...params).map(row => ({
+      ...row,
+      pecas_itens: row.pecas_itens ? (() => { try { return JSON.parse(row.pecas_itens); } catch { return []; } })() : [],
+    }));
+    res.json(rows);
   } catch (err) {
     log.error('app_get_os', err);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -183,15 +178,13 @@ router.get('/os', (req, res) => {
 
 router.post('/os', validateOS, (req, res) => {
   try {
-    const { cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, observacao, data } = req.body;
+    const { cliente_id, veiculo_id, descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, observacao, data } = req.body;
     const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
     const id = oid(req);
     const count = db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ?").get(id).n;
     const numero = String(count + 1).padStart(4, '0');
-    const result = db.prepare(`
-      INSERT INTO ordens_servico (oficina_id, cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, valor, observacao, data, numero)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, cliente_id||null, veiculo_id||null, descricao, servicos||null, pecas||null, valor_mo||0, valor_pecas||0, valor, observacao||null, data||new Date().toISOString().split('T')[0], numero);
+    const result = db.prepare(`INSERT INTO ordens_servico (oficina_id, cliente_id, veiculo_id, descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, valor, observacao, data, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, cliente_id||null, veiculo_id||null, descricao, servicos||null, pecas||null, pecas_itens?JSON.stringify(pecas_itens):null, valor_mo||0, valor_pecas||0, valor, observacao||null, data||new Date().toISOString().split('T')[0], numero);
     res.status(201).json({ id: result.lastInsertRowid, numero });
   } catch (err) {
     log.error('app_post_os', err);
@@ -201,18 +194,12 @@ router.post('/os', validateOS, (req, res) => {
 
 router.put('/os/:id', (req, res) => {
   try {
-    const { descricao, servicos, pecas, valor_mo, valor_pecas, status, observacao, cliente_id, veiculo_id, data } = req.body;
+    const { descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, status, observacao, cliente_id, veiculo_id, data } = req.body;
     const statusValidos = ['em_andamento', 'finalizado'];
     if (status && !statusValidos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
     const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
-    db.prepare(`
-      UPDATE ordens_servico SET
-        descricao=COALESCE(?,descricao), servicos=COALESCE(?,servicos), pecas=COALESCE(?,pecas),
-        valor_mo=COALESCE(?,valor_mo), valor_pecas=COALESCE(?,valor_pecas), valor=?,
-        status=COALESCE(?,status), observacao=COALESCE(?,observacao),
-        cliente_id=COALESCE(?,cliente_id), veiculo_id=COALESCE(?,veiculo_id), data=COALESCE(?,data)
-      WHERE id=? AND oficina_id=?
-    `).run(descricao,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req));
+    db.prepare(`UPDATE ordens_servico SET descricao=COALESCE(?,descricao), servicos=COALESCE(?,servicos), pecas=COALESCE(?,pecas), pecas_itens=COALESCE(?,pecas_itens), valor_mo=COALESCE(?,valor_mo), valor_pecas=COALESCE(?,valor_pecas), valor=?, status=COALESCE(?,status), observacao=COALESCE(?,observacao), cliente_id=COALESCE(?,cliente_id), veiculo_id=COALESCE(?,veiculo_id), data=COALESCE(?,data) WHERE id=? AND oficina_id=?`)
+      .run(descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req));
     res.json({ ok: true });
   } catch (err) {
     log.error('app_put_os', err);
@@ -300,19 +287,19 @@ router.get('/estoque', (req, res) => {
 
 router.post('/estoque', (req, res) => {
   try {
-    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs } = req.body;
+    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs, codigo_barras } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
-    const r = db.prepare('INSERT INTO estoque (oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-      .run(oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null);
+    const r = db.prepare('INSERT INTO estoque (oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null,codigo_barras||null);
     res.status(201).json({ id: r.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
 });
 
 router.put('/estoque/:id', (req, res) => {
   try {
-    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs } = req.body;
-    db.prepare('UPDATE estoque SET nome=COALESCE(?,nome),categoria=COALESCE(?,categoria),tipo=COALESCE(?,tipo),marca=COALESCE(?,marca),aplicacao=COALESCE(?,aplicacao),quantidade=COALESCE(?,quantidade),estoque_min=COALESCE(?,estoque_min),preco=COALESCE(?,preco),data_compra=COALESCE(?,data_compra),obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
-      .run(nome||null,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,req.params.id,oid(req));
+    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs, codigo_barras } = req.body;
+    db.prepare('UPDATE estoque SET nome=COALESCE(?,nome),categoria=COALESCE(?,categoria),tipo=COALESCE(?,tipo),marca=COALESCE(?,marca),aplicacao=COALESCE(?,aplicacao),quantidade=COALESCE(?,quantidade),estoque_min=COALESCE(?,estoque_min),preco=COALESCE(?,preco),data_compra=COALESCE(?,data_compra),obs=COALESCE(?,obs),codigo_barras=COALESCE(?,codigo_barras) WHERE id=? AND oficina_id=?')
+      .run(nome||null,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,codigo_barras||null,req.params.id,oid(req));
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
 });

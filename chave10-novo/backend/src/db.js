@@ -160,9 +160,12 @@ try {
 const migrações = [
   "ALTER TABLE clientes ADD COLUMN email TEXT",
   "ALTER TABLE clientes ADD COLUMN obs TEXT",
+  "ALTER TABLE clientes ADD COLUMN endereco TEXT",
   "ALTER TABLE veiculos ADD COLUMN marca TEXT",
   "ALTER TABLE veiculos ADD COLUMN km TEXT",
   "ALTER TABLE orcamentos ADD COLUMN desconto REAL DEFAULT 0",
+  "ALTER TABLE estoque ADD COLUMN codigo_barras TEXT",
+  "ALTER TABLE ordens_servico ADD COLUMN pecas_itens TEXT",
 ];
 migrações.forEach(sql => { try { db.exec(sql); } catch {} });
 

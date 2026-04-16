@@ -9,8 +9,122 @@ const fmt = {
 const STATUS_CLASS = { pendente:'badge-yellow', aprovado:'badge-green', rejeitado:'badge-red' };
 const STATUS_LABEL = { pendente:'⏳ Pendente', aprovado:'✅ Aprovado', rejeitado:'❌ Rejeitado' };
 
+function getOficina() { try { return JSON.parse(localStorage.getItem('c10_oficina'))||{}; } catch { return {}; } }
+
 function calcTotal(form) {
   return Math.max(0, (parseFloat(form.valor_mo)||0) + (parseFloat(form.valor_pecas)||0) - (parseFloat(form.desconto)||0));
+}
+
+function gerarHTMLOrcamento(orc, clientes, veiculos) {
+  const of  = getOficina();
+  const c   = clientes.find(x=>x.id===orc.cliente_id);
+  const v   = veiculos.find(x=>x.id===orc.veiculo_id);
+  const mo  = parseFloat(orc.valor_mo||0);
+  const pec = parseFloat(orc.valor_pecas||0);
+  const des = parseFloat(orc.desconto||0);
+  const total = Math.max(0, mo+pec-des);
+  const num = orc.numero||`ORC-${String(orc.id).padStart(4,'0')}`;
+  const statusColor = orc.status==='aprovado'?'#16a34a':orc.status==='rejeitado'?'#dc2626':'#d97706';
+
+  const logoHtml = of.logo
+    ? `<img src="${of.logo}" style="max-height:60px;max-width:180px;object-fit:contain" alt="Logo" />`
+    : `<div style="font-size:28px;font-weight:800;color:#1E3A5F;font-family:Arial,sans-serif">Chave <span style="color:#F97316">10</span></div>`;
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+  <title>Orçamento ${num}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:32px;max-width:800px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #1E3A5F}
+    .oficina-info{font-size:11px;color:#6B7280;margin-top:6px;line-height:1.6}
+    .orc-num{font-size:20px;font-weight:700;color:#1E3A5F}
+    .section{margin-bottom:20px}
+    .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6B7280;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #E5E7EB}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+    .field label{font-size:11px;color:#9CA3AF;display:block;margin-bottom:2px}
+    .field span{font-size:13px;color:#1a1a1a}
+    table{width:100%;border-collapse:collapse;margin-top:4px}
+    th{background:#F3F4F6;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6B7280;border:1px solid #E5E7EB}
+    td{padding:8px 10px;border:1px solid #E5E7EB;font-size:13px}
+    .valor-row{display:flex;justify-content:space-between;padding:7px 10px;font-size:13px}
+    .total-final{background:#1E3A5F;color:#fff;border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .total-final .val{font-size:22px;font-weight:800;color:#F97316}
+    .status-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${statusColor}20;color:${statusColor};border:1px solid ${statusColor}40}
+    .footer{margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;text-align:center;font-size:11px;color:#9CA3AF}
+    .nota{background:#FFF7ED;border:1px solid #FED7AA;border-radius:6px;padding:10px 14px;font-size:12px;color:#92400E;margin-top:16px}
+    @media print{body{padding:16px}.no-print{display:none}}
+  </style></head><body>
+  <div class="header">
+    <div>
+      ${logoHtml}
+      <div class="oficina-info">
+        ${of.nome?`<strong>${of.nome}</strong><br/>`:''}
+        ${of.documento?`CNPJ/CPF: ${of.documento}<br/>`:''}
+        ${of.endereco?`${of.endereco}<br/>`:''}
+        ${of.telefone?`Tel: ${of.telefone}  `:''}${of.whatsapp?`WhatsApp: ${of.whatsapp}`:''}
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="orc-num">${num}</div>
+      <div style="font-size:12px;color:#6B7280;margin-top:4px">Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
+      ${orc.validade?`<div style="font-size:12px;color:#6B7280">Válido até: ${fmt.date(orc.validade)}</div>`:''}
+      <div style="margin-top:6px"><span class="status-badge">${STATUS_LABEL[orc.status]||orc.status}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Cliente</div>
+    <div class="grid-2">
+      <div class="field"><label>Nome</label><span>${c?.nome||'—'}</span></div>
+      <div class="field"><label>Telefone</label><span>${c?.telefone||'—'}</span></div>
+      <div class="field"><label>Email</label><span>${c?.email||'—'}</span></div>
+      <div class="field"><label>Endereço</label><span>${c?.endereco||'—'}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Veículo</div>
+    <div class="grid-2">
+      <div class="field"><label>Veículo</label><span>${v?`${v.marca} ${v.modelo}`:'—'}</span></div>
+      <div class="field"><label>Placa</label><span>${v?.placa||'—'}</span></div>
+      <div class="field"><label>Ano</label><span>${v?.ano||'—'}</span></div>
+      <div class="field"><label>KM</label><span>${v?.km?parseInt(v.km).toLocaleString('pt-BR')+' km':'—'}</span></div>
+    </div>
+  </div>
+
+  ${orc.descricao?`<div class="section"><div class="section-title">Problema relatado</div><p style="background:#F9FAFB;padding:10px 12px;border-radius:6px">${orc.descricao}</p></div>`:''}
+
+  <div class="section">
+    <div class="section-title">Serviços e Peças</div>
+    <table>
+      <thead><tr><th>Descrição</th><th style="width:80px;text-align:center">Qtd</th><th style="width:120px;text-align:right">Valor unit.</th><th style="width:120px;text-align:right">Subtotal</th></tr></thead>
+      <tbody>
+        ${orc.servicos?`<tr><td colspan="4" style="background:#F3F4F6;font-weight:600;font-size:12px;color:#374151">🔧 SERVIÇOS</td></tr>
+        ${orc.servicos.split('\n').filter(s=>s.trim()).map(s=>`<tr><td>${s}</td><td></td><td></td><td></td></tr>`).join('')}`:''}
+        ${orc.pecas?`<tr><td colspan="4" style="background:#F3F4F6;font-weight:600;font-size:12px;color:#374151">🔩 PEÇAS</td></tr>
+        ${orc.pecas.split('\n').filter(p=>p.trim()).map(p=>`<tr><td>${p}</td><td></td><td></td><td></td></tr>`).join('')}`:''}
+        ${!orc.servicos&&!orc.pecas?`<tr><td colspan="4" style="color:#9CA3AF;text-align:center">Nenhum item registrado</td></tr>`:''}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Valores</div>
+    <div style="background:#F9FAFB;border-radius:6px;overflow:hidden;border:1px solid #E5E7EB">
+      <div class="valor-row"><span>Mão de obra</span><span>${fmt.currency(mo)}</span></div>
+      <div class="valor-row" style="border-top:1px solid #E5E7EB"><span>Peças</span><span>${fmt.currency(pec)}</span></div>
+      ${des>0?`<div class="valor-row" style="border-top:1px solid #E5E7EB;color:#dc2626"><span>Desconto</span><span>- ${fmt.currency(des)}</span></div>`:''}
+    </div>
+    <div class="total-final"><span style="font-size:16px;font-weight:700">TOTAL DO ORÇAMENTO</span><span class="val">${fmt.currency(total)}</span></div>
+  </div>
+
+  ${orc.obs?`<div class="nota">📌 <strong>Observações:</strong> ${orc.obs}</div>`:''}
+
+  <div class="footer">
+    ${of.nome||'Chave 10'} ${of.telefone?'· '+of.telefone:''} ${of.email?'· '+of.email:''}<br/>
+    Orçamento gerado em ${new Date().toLocaleDateString('pt-BR')} — válido por 7 dias a partir da emissão
+  </div>
+  </body></html>`;
 }
 
 function Toast({ msg, type }) {
@@ -54,8 +168,43 @@ export default function AppOrcamentos() {
     setEditing(o.id); setModal('form');
   }
 
-  async function save(e) {
-    e.preventDefault();
+  function imprimir(orc) {
+    const html = gerarHTMLOrcamento(orc, clientes, veiculos);
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  }
+
+  function enviarWhatsAppOrc(orc) {
+    const c = clientes.find(x=>x.id===orc.cliente_id);
+    if (!c?.telefone) { showToast('Cliente sem telefone cadastrado','error'); return; }
+    const of = getOficina();
+    const v = veiculos.find(x=>x.id===orc.veiculo_id);
+    const mo = parseFloat(orc.valor_mo||0);
+    const pec = parseFloat(orc.valor_pecas||0);
+    const des = parseFloat(orc.desconto||0);
+    const total = Math.max(0,mo+pec-des);
+    const num = orc.numero||`ORC-${String(orc.id).padStart(4,'0')}`;
+    let msg = `*Orçamento ${num} — ${of.nome||'Chave 10'}*\n`;
+    msg += `Data: ${new Date().toLocaleDateString('pt-BR')}\n`;
+    if (orc.validade) msg += `Válido até: ${fmt.date(orc.validade)}\n`;
+    msg += `\n*Veículo:* ${v?`${v.marca} ${v.modelo} — ${v.placa}`:'—'}\n`;
+    if (orc.descricao) msg += `*Problema:* ${orc.descricao}\n`;
+    if (orc.servicos) msg += `\n*Serviços:*\n${orc.servicos}\n`;
+    if (orc.pecas) msg += `\n*Peças:*\n${orc.pecas}\n`;
+    msg += `\n💰 *Mão de obra:* ${fmt.currency(mo)}`;
+    msg += `\n🔩 *Peças:* ${fmt.currency(pec)}`;
+    if (des>0) msg += `\n🏷️ *Desconto:* - ${fmt.currency(des)}`;
+    msg += `\n\n*TOTAL: ${fmt.currency(total)}*`;
+    if (orc.obs) msg += `\n\n📌 ${orc.obs}`;
+    msg += `\n\n_${of.nome||'Chave 10'}${of.telefone?' · '+of.telefone:''}_ `;
+    const tel = c.telefone.replace(/\D/g,'');
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
+  async function save(e) {    e.preventDefault();
     try {
       const payload = { ...form, cliente_id:form.cliente_id||null, veiculo_id:form.veiculo_id||null,
         descricao: form.problema, valor_mo:parseFloat(form.valor_mo)||0, valor_pecas:parseFloat(form.valor_pecas)||0,
@@ -131,7 +280,8 @@ export default function AppOrcamentos() {
                       <td>
                         <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                           <button className="btn btn-outline btn-sm" onClick={()=>{setViewing(o);setModal('ver');}}>👁️ Ver</button>
-                          <button className="btn btn-outline btn-sm" onClick={()=>enviarWhatsApp(o)} title="WhatsApp">💬</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=>imprimir(o)} title="Imprimir PDF">🖨️</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=>enviarWhatsAppOrc(o)} title="WhatsApp">💬</button>
                           <button className="btn btn-outline btn-sm" onClick={()=>openEdit(o)}>✏️</button>
                           <button className="btn btn-outline btn-sm" onClick={()=>remove(o.id)}>🗑️</button>
                         </div>
@@ -244,7 +394,8 @@ export default function AppOrcamentos() {
                 </div>
                 <div className="form-actions">
                   <button className="btn btn-outline" onClick={()=>setModal(null)}>Fechar</button>
-                  <button className="btn btn-outline" onClick={()=>enviarWhatsApp(viewing)}>💬 WhatsApp</button>
+                  <button className="btn btn-outline" onClick={()=>imprimir(viewing)}>🖨️ Imprimir</button>
+                  <button className="btn btn-outline" onClick={()=>enviarWhatsAppOrc(viewing)}>💬 WhatsApp</button>
                   <button className="btn btn-primary" onClick={()=>openEdit(viewing)}>✏️ Editar</button>
                   {viewing.status==='pendente'&&<button className="btn btn-success" onClick={()=>setStatus(viewing.id,'aprovado')}>✅ Aprovar</button>}
                 </div>

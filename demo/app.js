@@ -1064,6 +1064,10 @@ function formCliente(id) {
         <input id="fEmail" type="email" value="${c.email || ''}" placeholder="email@exemplo.com" />
       </div>
       <div class="form-group full">
+        <label>Endereço</label>
+        <input id="fEndereco" type="text" value="${c.endereco || ''}" placeholder="Rua, número, bairro, cidade" />
+      </div>
+      <div class="form-group full">
         <label>Observações</label>
         <textarea id="fObs" placeholder="Anotações sobre o cliente...">${c.obs || ''}</textarea>
       </div>
@@ -1077,7 +1081,7 @@ function formCliente(id) {
 function saveCliente(id) {
   const nome = document.getElementById('fNome').value.trim();
   if (!nome) { showToast('Nome é obrigatório', 'error'); return; }
-  Clientes.save({ id: id || undefined, nome, telefone: document.getElementById('fTel').value, email: document.getElementById('fEmail').value, obs: document.getElementById('fObs').value });
+  Clientes.save({ id: id || undefined, nome, telefone: document.getElementById('fTel').value, email: document.getElementById('fEmail').value, endereco: document.getElementById('fEndereco').value, obs: document.getElementById('fObs').value });
   closeModal();
   showToast('Cliente salvo com sucesso!', 'success');
   renderClientes('');
@@ -1394,6 +1398,7 @@ function verOS(id) {
     <div class="os-detail-grid">
       <div class="os-detail-item"><label>Cliente</label><p>${c ? c.nome : '-'}</p></div>
       <div class="os-detail-item"><label>Telefone</label><p>${c ? fmt.phone(c.telefone) : '-'}</p></div>
+      <div class="os-detail-item"><label>Endereço</label><p>${c && c.endereco ? c.endereco : '-'}</p></div>
       <div class="os-detail-item"><label>Veículo</label><p>${v ? v.marca + ' ' + v.modelo : '-'}</p></div>
       <div class="os-detail-item"><label>Placa</label><p>${v ? v.placa : '-'}</p></div>
       <div class="os-detail-item"><label>Data</label><p>${fmt.date(o.data)}</p></div>
@@ -1422,9 +1427,99 @@ function verOS(id) {
     </div>
     <div class="form-actions">
       <button class="btn btn-outline" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-outline" onclick="imprimirOS(${o.id})">🖨️ Imprimir</button>
+      <button class="btn btn-outline" onclick="enviarOSWhatsApp(${o.id})">💬 WhatsApp</button>
       <button class="btn btn-primary" onclick="closeModal();editOS(${o.id})">✏️ Editar</button>
       ${o.status === 'em_andamento' ? `<button class="btn btn-success" onclick="finalizarOS(${o.id})">✅ Finalizar</button>` : ''}
     </div>`);
+}
+
+function imprimirOS(id) {
+  const o = Ordens.get(id);
+  const c = Clientes.get(o.clienteId);
+  const v = Veiculos.get(o.veiculoId);
+  const of = Oficina.get();
+  const total = parseFloat(o.valorMO||0) + parseFloat(o.valorPecas||0);
+  const logoHtml = of.logo
+    ? `<img src="${of.logo}" style="max-height:60px;max-width:180px;object-fit:contain" alt="Logo" />`
+    : `<div style="font-size:24px;font-weight:800;color:#1E3A5F">Chave <span style="color:#F97316">10</span></div>`;
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+    <title>OS #${o.numero}</title>
+    <style>
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;max-width:720px;margin:32px auto;padding:0 24px;color:#1f2937;font-size:13px}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;margin-bottom:16px;border-bottom:3px solid #1E3A5F}
+      .oficina-info{font-size:11px;color:#6b7280;margin-top:6px;line-height:1.6}
+      .os-num{font-size:18px;font-weight:700;color:#1E3A5F;text-align:right}
+      h3{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#9ca3af;margin:16px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+      .lbl{font-size:10px;color:#9ca3af;display:block;margin-bottom:1px}
+      .val{font-size:13px;font-weight:600;color:#111827}
+      .text-block{background:#f9fafb;padding:10px 14px;border-radius:6px;font-size:13px;border:1px solid #e5e7eb;white-space:pre-wrap}
+      .valores{border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-top:8px}
+      .vrow{display:flex;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #f3f4f6;font-size:13px}
+      .vrow.total{font-weight:800;font-size:16px;background:#eff6ff;color:#1E3A5F;border-bottom:none}
+      .footer{margin-top:24px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px}
+      @media print{body{margin:0;padding:16px}}
+    </style></head><body>
+    <div class="header">
+      <div>${logoHtml}<div class="oficina-info">${of.nome||''} ${of.telefone?'· Tel: '+of.telefone:''} ${of.endereco?'<br>'+of.endereco:''}</div></div>
+      <div class="os-num">OS #${o.numero}<br><span style="font-size:12px;color:#6b7280;font-weight:400">${fmt.date(o.data)}</span><br>
+        <span style="font-size:11px;padding:2px 8px;background:${o.status==='finalizado'?'#f0fdf4':'#fff7ed'};color:${o.status==='finalizado'?'#16a34a':'#d97706'};border-radius:20px;font-weight:700">${o.status==='finalizado'?'Finalizado':'Em andamento'}</span>
+      </div>
+    </div>
+    <h3>Cliente</h3>
+    <div class="grid">
+      <div><span class="lbl">Nome</span><span class="val">${c?c.nome:'-'}</span></div>
+      <div><span class="lbl">Telefone</span><span class="val">${c&&c.telefone?c.telefone:'-'}</span></div>
+      <div><span class="lbl">Email</span><span class="val">${c&&c.email?c.email:'-'}</span></div>
+      <div><span class="lbl">Endereço</span><span class="val">${c&&c.endereco?c.endereco:'-'}</span></div>
+    </div>
+    <h3>Veículo</h3>
+    <div class="grid">
+      <div><span class="lbl">Veículo</span><span class="val">${v?v.marca+' '+v.modelo:'-'}</span></div>
+      <div><span class="lbl">Placa</span><span class="val">${v?v.placa:'-'}</span></div>
+      <div><span class="lbl">Ano</span><span class="val">${v&&v.ano?v.ano:'-'}</span></div>
+      <div><span class="lbl">KM</span><span class="val">${v&&v.km?parseInt(v.km).toLocaleString('pt-BR')+' km':'-'}</span></div>
+    </div>
+    <h3>Problema relatado</h3><div class="text-block">${o.problema}</div>
+    ${o.servicos?`<h3>Serviços realizados</h3><div class="text-block">${o.servicos}</div>`:''}
+    ${o.pecas?`<h3>Peças utilizadas</h3><div class="text-block">${o.pecas}</div>`:''}
+    <h3>Valores</h3>
+    <div class="valores">
+      <div class="vrow"><span>Mão de obra</span><span>${fmt.currency(o.valorMO)}</span></div>
+      <div class="vrow"><span>Peças</span><span>${fmt.currency(o.valorPecas)}</span></div>
+      <div class="vrow total"><span>TOTAL</span><span>${fmt.currency(total)}</span></div>
+    </div>
+    <div class="footer">${of.nome||'Chave 10'} ${of.telefone?'· '+of.telefone:''} — Documento gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+function enviarOSWhatsApp(id) {
+  const o = Ordens.get(id);
+  const c = Clientes.get(o.clienteId);
+  if (!c?.telefone) { showToast('Cliente sem telefone cadastrado', 'error'); return; }
+  const v = Veiculos.get(o.veiculoId);
+  const of = Oficina.get();
+  const total = parseFloat(o.valorMO||0) + parseFloat(o.valorPecas||0);
+  let msg = `*OS #${o.numero} — ${of.nome||'Chave 10'}*\n`;
+  msg += `Data: ${fmt.date(o.data)}\n`;
+  msg += `Veículo: ${v?v.marca+' '+v.modelo+' — '+v.placa:'—'}\n\n`;
+  msg += `*Problema:* ${o.problema}\n`;
+  if (o.servicos) msg += `*Serviços:* ${o.servicos}\n`;
+  if (o.pecas) msg += `*Peças:* ${o.pecas}\n`;
+  msg += `\n*Mão de obra:* ${fmt.currency(o.valorMO)}`;
+  msg += `\n*Peças:* ${fmt.currency(o.valorPecas)}`;
+  msg += `\n*TOTAL: ${fmt.currency(total)}*`;
+  const tel = c.telefone.replace(/\D/g,'');
+  window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  showToast('WhatsApp aberto!', 'success');
+  closeModal();
 }
 
 function finalizarOS(id) {
