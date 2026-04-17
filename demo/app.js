@@ -79,8 +79,8 @@ async function doLogin() {
     // Tenta modo demo local
   }
 
-  // Fallback: modo demo local (admin / 1234)
-  if (user === 'admin' && pass === '1234') {
+  // Fallback: modo demo local (teste / 1234)
+  if (user === 'teste' && pass === '1234') {
     stopLandingAnimations();
     document.getElementById('loginScreen').classList.add('hidden');
     showLoginLoader(function() {
