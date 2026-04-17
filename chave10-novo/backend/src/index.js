@@ -12,16 +12,26 @@ const app = express();
 app.use(helmet());
 
 // ── CORS ─────────────────────────────────────────────────────
-// Em produção, defina FRONTEND_URL com o domínio real (ex: https://app.chave10.com.br)
-// Nunca use '*' em produção para uma API autenticada
 const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL].filter(Boolean)
+  ? [
+      process.env.FRONTEND_URL,
+      // Aceita qualquer subdomínio da Vercel e Railway
+    ].filter(Boolean)
   : ['http://localhost:5173', 'http://localhost:3000'];
 
 app.use(cors({
   origin(origin, cb) {
-    // Permite requisições sem origin (ex: Postman, mobile) apenas em dev
-    if (!origin && process.env.NODE_ENV !== 'production') return cb(null, true);
+    if (!origin) return cb(null, true); // Postman, mobile, server-to-server
+    // Em produção aceita: FRONTEND_URL definido, *.vercel.app, *.railway.app, github.io
+    if (process.env.NODE_ENV === 'production') {
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.endsWith('.railway.app') ||
+        origin.endsWith('.github.io')
+      ) return cb(null, true);
+      return cb(new Error('CORS: origem não permitida'));
+    }
     if (allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error('CORS: origem não permitida'));
   },
