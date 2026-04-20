@@ -1,183 +1,192 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const db = new Database(path.join(__dirname, '../chave10.db'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS oficinas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,
-    responsavel TEXT,
-    telefone TEXT,
-    email TEXT UNIQUE NOT NULL,
-    plano TEXT DEFAULT 'mensal',
-    status_assinatura TEXT DEFAULT 'pending'
-      CHECK(status_assinatura IN ('active','pending','overdue','blocked')),
-    data_vencimento TEXT,
-    data_criacao TEXT DEFAULT (date('now')),
-    observacoes TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER REFERENCES oficinas(id) ON DELETE CASCADE,
-    nome TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    senha_hash TEXT NOT NULL,
-    perfil TEXT DEFAULT 'funcionario'
-      CHECK(perfil IN ('master_admin','admin_oficina','funcionario')),
-    ativo INTEGER DEFAULT 1,
-    ultimo_acesso TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS pagamentos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    valor REAL NOT NULL,
-    data_pagamento TEXT NOT NULL,
-    novo_vencimento TEXT NOT NULL,
-    forma_pagamento TEXT DEFAULT 'pix'
-      CHECK(forma_pagamento IN ('pix','dinheiro','transferencia')),
-    observacao TEXT,
-    confirmado_por TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS clientes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    nome TEXT NOT NULL,
-    telefone TEXT,
-    data_criacao TEXT DEFAULT (date('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS veiculos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
-    placa TEXT,
-    modelo TEXT,
-    ano TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS ordens_servico (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
-    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
-    descricao TEXT NOT NULL,
-    servicos TEXT,
-    pecas TEXT,
-    valor_mo REAL DEFAULT 0,
-    valor_pecas REAL DEFAULT 0,
-    valor REAL DEFAULT 0,
-    status TEXT DEFAULT 'em_andamento'
-      CHECK(status IN ('em_andamento','finalizado')),
-    data TEXT DEFAULT (date('now')),
-    observacao TEXT,
-    numero TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS lembretes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE CASCADE,
-    tipo TEXT DEFAULT 'outro',
-    descricao TEXT NOT NULL,
-    data_previsao TEXT,
-    km_previsao TEXT,
-    visto INTEGER DEFAULT 0,
-    criado_em TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS estoque (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    nome TEXT NOT NULL,
-    categoria TEXT DEFAULT 'peca',
-    tipo TEXT,
-    marca TEXT,
-    aplicacao TEXT,
-    quantidade INTEGER DEFAULT 0,
-    estoque_min INTEGER DEFAULT 0,
-    preco REAL DEFAULT 0,
-    data_compra TEXT,
-    obs TEXT,
-    criado_em TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS despesas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    descricao TEXT NOT NULL,
-    categoria TEXT DEFAULT 'Outros',
-    valor REAL NOT NULL,
-    data TEXT NOT NULL,
-    vencimento TEXT,
-    pago INTEGER DEFAULT 0,
-    obs TEXT,
-    criado_em TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS orcamentos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
-    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
-    numero TEXT,
-    descricao TEXT,
-    servicos TEXT,
-    pecas TEXT,
-    valor_mo REAL DEFAULT 0,
-    valor_pecas REAL DEFAULT 0,
-    status TEXT DEFAULT 'pendente',
-    validade TEXT,
-    obs TEXT,
-    criado_em TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS agenda (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
-    cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
-    veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
-    titulo TEXT NOT NULL,
-    data TEXT NOT NULL,
-    hora TEXT,
-    descricao TEXT,
-    criado_em TEXT DEFAULT (datetime('now'))
-  );
-`);
-
-// Migração: perfis antigos → novos
-try {
-  db.exec("UPDATE usuarios SET perfil = 'master_admin' WHERE perfil = 'admin'");
-} catch {}
-
-// Migrações de colunas
-const migrações = [
-  "ALTER TABLE clientes ADD COLUMN email TEXT",
-  "ALTER TABLE clientes ADD COLUMN obs TEXT",
-  "ALTER TABLE clientes ADD COLUMN endereco TEXT",
-  "ALTER TABLE veiculos ADD COLUMN marca TEXT",
-  "ALTER TABLE veiculos ADD COLUMN km TEXT",
-  "ALTER TABLE orcamentos ADD COLUMN desconto REAL DEFAULT 0",
-  "ALTER TABLE estoque ADD COLUMN codigo_barras TEXT",
-  "ALTER TABLE ordens_servico ADD COLUMN pecas_itens TEXT",
-];
-migrações.forEach(sql => { try { db.exec(sql); } catch {} });
-
-// Criar master_admin padrão se não existir
-const adminExists = db.prepare("SELECT id FROM usuarios WHERE perfil = 'master_admin'").get();
-if (!adminExists) {
-  const hash = bcrypt.hashSync('admin123', 10);
-  db.prepare(`
-    INSERT INTO usuarios (oficina_id, nome, email, senha_hash, perfil)
-    VALUES (NULL, 'Administrador', 'admin@chave10.com', ?, 'master_admin')
-  `).run(hash);
-  console.log('✅ master_admin criado: admin@chave10.com / admin123');
+// Helper: executa query e retorna rows
+async function query(text, params) {
+  const res = await pool.query(text, params);
+  return res.rows;
 }
 
-module.exports = db;
+// Helper: executa query e retorna primeira row
+async function queryOne(text, params) {
+  const res = await pool.query(text, params);
+  return res.rows[0] || null;
+}
+
+// Helper: executa query sem retorno (INSERT/UPDATE/DELETE)
+async function run(text, params) {
+  const res = await pool.query(text, params);
+  return res;
+}
+
+// Cria tabelas se não existirem
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS oficinas (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      responsavel TEXT,
+      telefone TEXT,
+      email TEXT UNIQUE NOT NULL,
+      plano TEXT DEFAULT 'mensal',
+      status_assinatura TEXT DEFAULT 'pending' CHECK(status_assinatura IN ('active','pending','overdue','blocked')),
+      data_vencimento TEXT,
+      data_criacao TEXT DEFAULT CURRENT_DATE,
+      observacoes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER REFERENCES oficinas(id) ON DELETE CASCADE,
+      nome TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      senha_hash TEXT NOT NULL,
+      perfil TEXT DEFAULT 'funcionario' CHECK(perfil IN ('master_admin','admin_oficina','funcionario')),
+      ativo INTEGER DEFAULT 1,
+      ultimo_acesso TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pagamentos (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      valor REAL NOT NULL,
+      data_pagamento TEXT NOT NULL,
+      novo_vencimento TEXT NOT NULL,
+      forma_pagamento TEXT DEFAULT 'pix' CHECK(forma_pagamento IN ('pix','dinheiro','transferencia')),
+      observacao TEXT,
+      confirmado_por TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS clientes (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      nome TEXT NOT NULL,
+      telefone TEXT,
+      email TEXT,
+      obs TEXT,
+      endereco TEXT,
+      data_criacao TEXT DEFAULT CURRENT_DATE
+    );
+
+    CREATE TABLE IF NOT EXISTS veiculos (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+      placa TEXT,
+      modelo TEXT,
+      marca TEXT,
+      ano TEXT,
+      km TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ordens_servico (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+      veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
+      descricao TEXT NOT NULL,
+      servicos TEXT,
+      pecas TEXT,
+      pecas_itens TEXT,
+      valor_mo REAL DEFAULT 0,
+      valor_pecas REAL DEFAULT 0,
+      valor REAL DEFAULT 0,
+      status TEXT DEFAULT 'em_andamento' CHECK(status IN ('em_andamento','finalizado')),
+      data TEXT DEFAULT CURRENT_DATE,
+      observacao TEXT,
+      numero TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS lembretes (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE CASCADE,
+      tipo TEXT DEFAULT 'outro',
+      descricao TEXT NOT NULL,
+      data_previsao TEXT,
+      km_previsao TEXT,
+      visto INTEGER DEFAULT 0,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS estoque (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      nome TEXT NOT NULL,
+      categoria TEXT DEFAULT 'peca',
+      tipo TEXT,
+      marca TEXT,
+      aplicacao TEXT,
+      quantidade INTEGER DEFAULT 0,
+      estoque_min INTEGER DEFAULT 0,
+      preco REAL DEFAULT 0,
+      data_compra TEXT,
+      obs TEXT,
+      codigo_barras TEXT,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS despesas (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      descricao TEXT NOT NULL,
+      categoria TEXT DEFAULT 'Outros',
+      valor REAL NOT NULL,
+      data TEXT NOT NULL,
+      vencimento TEXT,
+      pago INTEGER DEFAULT 0,
+      obs TEXT,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS orcamentos (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+      veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
+      numero TEXT,
+      descricao TEXT,
+      servicos TEXT,
+      pecas TEXT,
+      valor_mo REAL DEFAULT 0,
+      valor_pecas REAL DEFAULT 0,
+      desconto REAL DEFAULT 0,
+      status TEXT DEFAULT 'pendente',
+      validade TEXT,
+      obs TEXT,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS agenda (
+      id SERIAL PRIMARY KEY,
+      oficina_id INTEGER NOT NULL REFERENCES oficinas(id) ON DELETE CASCADE,
+      cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+      veiculo_id INTEGER REFERENCES veiculos(id) ON DELETE SET NULL,
+      titulo TEXT NOT NULL,
+      data TEXT NOT NULL,
+      hora TEXT,
+      descricao TEXT,
+      criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Cria master_admin se não existir
+  const admin = await queryOne("SELECT id FROM usuarios WHERE perfil = 'master_admin'");
+  if (!admin) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    await run(
+      "INSERT INTO usuarios (oficina_id, nome, email, senha_hash, perfil) VALUES (NULL, 'Administrador', 'admin@chave10.com', $1, 'master_admin')",
+      [hash]
+    );
+    console.log('✅ master_admin criado: admin@chave10.com / admin123');
+  }
+
+  console.log('✅ Banco PostgreSQL inicializado');
+}
+
+module.exports = { pool, query, queryOne, run, initDB };

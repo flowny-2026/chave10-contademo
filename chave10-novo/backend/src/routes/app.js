@@ -1,434 +1,307 @@
 const router = require('express').Router();
-const db     = require('../db');
+const { query, queryOne, run } = require('../db');
 const { authMiddleware, oficinaSelf } = require('../middleware/auth');
 const { validateCliente, validateVeiculo, validateOS } = require('../middleware/validate');
 const log = require('../utils/logger');
 
-// Todas as rotas exigem token válido + oficina associada
 router.use(authMiddleware, oficinaSelf);
+const oid = req => req.user.oficina_id;
 
-// Helper: oficina_id do token — NUNCA do body/query (isolamento garantido)
-const oid = (req) => req.user.oficina_id;
-
-// ─── DASHBOARD ───────────────────────────────────────────────
-router.get('/dashboard', (req, res) => {
+// DASHBOARD
+router.get('/dashboard', async (req,res) => {
   try {
-    const id = oid(req);
-    const hoje      = new Date().toISOString().split('T')[0];
-    const mesInicio = hoje.substring(0, 7) + '-01';
-
-    const stats = {
-      emAndamento:     db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ? AND status = 'em_andamento'").get(id).n,
-      finalizadasHoje: db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ? AND status = 'finalizado' AND data = ?").get(id, hoje).n,
-      faturamentoMes:  db.prepare("SELECT COALESCE(SUM(valor),0) as n FROM ordens_servico WHERE oficina_id = ? AND status = 'finalizado' AND data >= ?").get(id, mesInicio).n,
-      totalClientes:   db.prepare("SELECT COUNT(*) as n FROM clientes WHERE oficina_id = ?").get(id).n,
-    };
-
-    const recentes = db.prepare(`
-      SELECT os.*, c.nome as cliente_nome, v.modelo as veiculo_modelo, v.placa
-      FROM ordens_servico os
-      LEFT JOIN clientes c ON c.id = os.cliente_id
-      LEFT JOIN veiculos v ON v.id = os.veiculo_id
-      WHERE os.oficina_id = ? ORDER BY os.id DESC LIMIT 5
-    `).all(id);
-
-    const faturamentoMensal = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
-      const ano = d.getFullYear();
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      const inicio = `${ano}-${mes}-01`;
-      const fim    = `${ano}-${mes}-31`;
-      const row = db.prepare("SELECT COALESCE(SUM(valor),0) as total FROM ordens_servico WHERE oficina_id = ? AND status = 'finalizado' AND data >= ? AND data <= ?").get(id, inicio, fim);
-      faturamentoMensal.push({ mes: `${mes}/${String(ano).slice(2)}`, total: row.total });
+    const id=oid(req), hoje=new Date().toISOString().split('T')[0], mesInicio=hoje.substring(0,7)+'-01';
+    const [emAnd,finHoje,fatMes,totCli] = await Promise.all([
+      queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1 AND status='em_andamento'",[id]),
+      queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data=$2",[id,hoje]),
+      queryOne("SELECT COALESCE(SUM(valor),0) n FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2",[id,mesInicio]),
+      queryOne("SELECT COUNT(*) n FROM clientes WHERE oficina_id=$1",[id]),
+    ]);
+    const stats={emAndamento:+emAnd.n,finalizadasHoje:+finHoje.n,faturamentoMes:+fatMes.n,totalClientes:+totCli.n};
+    const recentes=await query("SELECT os.*,c.nome as cliente_nome,v.modelo as veiculo_modelo,v.placa FROM ordens_servico os LEFT JOIN clientes c ON c.id=os.cliente_id LEFT JOIN veiculos v ON v.id=os.veiculo_id WHERE os.oficina_id=$1 ORDER BY os.id DESC LIMIT 5",[id]);
+    const faturamentoMensal=[];
+    for(let i=5;i>=0;i--){
+      const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);
+      const ano=d.getFullYear(),mes=String(d.getMonth()+1).padStart(2,'0');
+      const r=await queryOne("SELECT COALESCE(SUM(valor),0) total FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2 AND data<=$3",[id,`${ano}-${mes}-01`,`${ano}-${mes}-31`]);
+      faturamentoMensal.push({mes:`${mes}/${String(ano).slice(2)}`,total:+r.total});
     }
-
-    res.json({ stats, recentes, faturamentoMensal });
-  } catch (err) {
-    log.error('app_dashboard', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    res.json({stats,recentes,faturamentoMensal});
+  } catch(err){log.error('app_dashboard',err);res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── CLIENTES ────────────────────────────────────────────────
-router.get('/clientes', (req, res) => {
+// CLIENTES
+router.get('/clientes', async (req,res) => {
   try {
-    const { q } = req.query;
-    let query = `
-      SELECT c.*, COUNT(v.id) as total_veiculos
-      FROM clientes c
-      LEFT JOIN veiculos v ON v.cliente_id = c.id
-      WHERE c.oficina_id = ?`;
-    const params = [oid(req)];
-    if (q && typeof q === 'string') { query += ' AND (c.nome LIKE ? OR c.telefone LIKE ?)'; params.push(`%${q.slice(0,100)}%`, `%${q.slice(0,100)}%`); }
-    query += ' GROUP BY c.id ORDER BY c.nome';
-    res.json(db.prepare(query).all(...params));
-  } catch (err) {
-    log.error('app_get_clientes', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {q}=req.query;
+    let sql="SELECT c.*,COUNT(v.id) as total_veiculos FROM clientes c LEFT JOIN veiculos v ON v.cliente_id=c.id WHERE c.oficina_id=$1";
+    const p=[oid(req)];
+    if(q&&typeof q==='string'){sql+=' AND (c.nome ILIKE $2 OR c.telefone ILIKE $2)';p.push(`%${q.slice(0,100)}%`);}
+    sql+=' GROUP BY c.id ORDER BY c.nome';
+    res.json(await query(sql,p));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/clientes', validateCliente, (req, res) => {
+router.post('/clientes', validateCliente, async (req,res) => {
   try {
-    const { nome, telefone, email, obs, endereco } = req.body;
-    const result = db.prepare('INSERT INTO clientes (oficina_id, nome, telefone, email, obs, endereco) VALUES (?, ?, ?, ?, ?, ?)').run(oid(req), nome, telefone||null, email||null, obs||null, endereco||null);
-    res.status(201).json({ id: result.lastInsertRowid, nome, telefone, email, obs, endereco });
-  } catch (err) {
-    log.error('app_post_cliente', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {nome,telefone,email,obs,endereco}=req.body;
+    const r=await queryOne("INSERT INTO clientes(oficina_id,nome,telefone,email,obs,endereco) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",[oid(req),nome,telefone||null,email||null,obs||null,endereco||null]);
+    res.status(201).json({id:r.id,nome,telefone,email,obs,endereco});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/clientes/:id', validateCliente, (req, res) => {
+router.put('/clientes/:id', validateCliente, async (req,res) => {
   try {
-    const { nome, telefone, email, obs, endereco } = req.body;
-    db.prepare('UPDATE clientes SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone), email=COALESCE(?,email), obs=COALESCE(?,obs), endereco=COALESCE(?,endereco) WHERE id=? AND oficina_id=?')
-      .run(nome, telefone||null, email||null, obs||null, endereco||null, req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_put_cliente', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {nome,telefone,email,obs,endereco}=req.body;
+    await run("UPDATE clientes SET nome=COALESCE($1,nome),telefone=COALESCE($2,telefone),email=COALESCE($3,email),obs=COALESCE($4,obs),endereco=COALESCE($5,endereco) WHERE id=$6 AND oficina_id=$7",[nome,telefone||null,email||null,obs||null,endereco||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/clientes/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM clientes WHERE id = ? AND oficina_id = ?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_delete_cliente', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+router.delete('/clientes/:id', async (req,res) => {
+  try { await run('DELETE FROM clientes WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── VEÍCULOS ────────────────────────────────────────────────
-router.get('/veiculos', (req, res) => {
+// VEÍCULOS
+router.get('/veiculos', async (req,res) => {
   try {
-    const { cliente_id } = req.query;
-    let q = `
-      SELECT v.*, c.nome as cliente_nome FROM veiculos v
-      LEFT JOIN clientes c ON c.id = v.cliente_id
-      WHERE v.oficina_id = ?
-    `;
-    const params = [oid(req)];
-    if (cliente_id) { q += ' AND v.cliente_id = ?'; params.push(Number(cliente_id)); }
-    q += ' ORDER BY v.modelo';
-    res.json(db.prepare(q).all(...params));
-  } catch (err) {
-    log.error('app_get_veiculos', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {cliente_id}=req.query;
+    let q="SELECT v.*,c.nome as cliente_nome FROM veiculos v LEFT JOIN clientes c ON c.id=v.cliente_id WHERE v.oficina_id=$1";
+    const p=[oid(req)];
+    if(cliente_id){q+=' AND v.cliente_id=$2';p.push(Number(cliente_id));}
+    q+=' ORDER BY v.modelo';
+    res.json(await query(q,p));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/veiculos', validateVeiculo, (req, res) => {
+router.post('/veiculos', validateVeiculo, async (req,res) => {
   try {
-    const { cliente_id, placa, modelo, marca, ano, km } = req.body;
-    const result = db.prepare('INSERT INTO veiculos (oficina_id, cliente_id, placa, modelo, marca, ano, km) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(oid(req), cliente_id||null, placa||null, modelo, marca||null, ano||null, km||null);
-    res.status(201).json({ id: result.lastInsertRowid, placa, modelo, marca, ano, km });
-  } catch (err) {
-    log.error('app_post_veiculo', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {cliente_id,placa,modelo,marca,ano,km}=req.body;
+    const r=await queryOne("INSERT INTO veiculos(oficina_id,cliente_id,placa,modelo,marca,ano,km) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id",[oid(req),cliente_id||null,placa||null,modelo,marca||null,ano||null,km||null]);
+    res.status(201).json({id:r.id,placa,modelo,marca,ano,km});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/veiculos/:id', validateVeiculo, (req, res) => {
+router.put('/veiculos/:id', validateVeiculo, async (req,res) => {
   try {
-    const { cliente_id, placa, modelo, marca, ano, km } = req.body;
-    db.prepare('UPDATE veiculos SET cliente_id=COALESCE(?,cliente_id), placa=COALESCE(?,placa), modelo=COALESCE(?,modelo), marca=COALESCE(?,marca), ano=COALESCE(?,ano), km=COALESCE(?,km) WHERE id=? AND oficina_id=?')
-      .run(cliente_id||null, placa||null, modelo, marca||null, ano||null, km||null, req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_put_veiculo', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {cliente_id,placa,modelo,marca,ano,km}=req.body;
+    await run("UPDATE veiculos SET cliente_id=COALESCE($1,cliente_id),placa=COALESCE($2,placa),modelo=COALESCE($3,modelo),marca=COALESCE($4,marca),ano=COALESCE($5,ano),km=COALESCE($6,km) WHERE id=$7 AND oficina_id=$8",[cliente_id||null,placa||null,modelo,marca||null,ano||null,km||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/veiculos/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM veiculos WHERE id = ? AND oficina_id = ?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_delete_veiculo', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+router.delete('/veiculos/:id', async (req,res) => {
+  try { await run('DELETE FROM veiculos WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── ORDENS DE SERVIÇO ───────────────────────────────────────
-router.get('/os', (req, res) => {
+// ORDENS DE SERVIÇO
+router.get('/os', async (req,res) => {
   try {
-    const { status } = req.query;
-    const statusValidos = ['em_andamento', 'finalizado'];
-    if (status && !statusValidos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
-    let q = `SELECT os.*, c.nome as cliente_nome, c.telefone as cliente_telefone, c.endereco as cliente_endereco, v.modelo as veiculo_modelo, v.placa, v.marca as veiculo_marca, v.ano as veiculo_ano, v.km as veiculo_km FROM ordens_servico os LEFT JOIN clientes c ON c.id = os.cliente_id LEFT JOIN veiculos v ON v.id = os.veiculo_id WHERE os.oficina_id = ?`;
-    const params = [oid(req)];
-    if (status) { q += ' AND os.status = ?'; params.push(status); }
-    q += ' ORDER BY os.id DESC';
-    const rows = db.prepare(q).all(...params).map(row => ({
-      ...row,
-      pecas_itens: row.pecas_itens ? (() => { try { return JSON.parse(row.pecas_itens); } catch { return []; } })() : [],
-    }));
+    const {status}=req.query;
+    if(status&&!['em_andamento','finalizado'].includes(status)) return res.status(400).json({error:'Status inválido'});
+    let q="SELECT os.*,c.nome as cliente_nome,c.telefone as cliente_telefone,c.endereco as cliente_endereco,v.modelo as veiculo_modelo,v.placa,v.marca as veiculo_marca,v.ano as veiculo_ano,v.km as veiculo_km FROM ordens_servico os LEFT JOIN clientes c ON c.id=os.cliente_id LEFT JOIN veiculos v ON v.id=os.veiculo_id WHERE os.oficina_id=$1";
+    const p=[oid(req)];
+    if(status){q+=' AND os.status=$2';p.push(status);}
+    q+=' ORDER BY os.id DESC';
+    const rows=(await query(q,p)).map(r=>({...r,pecas_itens:r.pecas_itens?JSON.parse(r.pecas_itens):[]}));
     res.json(rows);
-  } catch (err) {
-    log.error('app_get_os', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+  } catch(err){log.error('app_get_os',err);res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/os', validateOS, (req, res) => {
+router.post('/os', validateOS, async (req,res) => {
   try {
-    const { cliente_id, veiculo_id, descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, observacao, data } = req.body;
-    const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
-    const id = oid(req);
-    const count = db.prepare("SELECT COUNT(*) as n FROM ordens_servico WHERE oficina_id = ?").get(id).n;
-    const numero = String(count + 1).padStart(4, '0');
-    const result = db.prepare(`INSERT INTO ordens_servico (oficina_id, cliente_id, veiculo_id, descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, valor, observacao, data, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, cliente_id||null, veiculo_id||null, descricao, servicos||null, pecas||null, pecas_itens?JSON.stringify(pecas_itens):null, valor_mo||0, valor_pecas||0, valor, observacao||null, data||new Date().toISOString().split('T')[0], numero);
-    res.status(201).json({ id: result.lastInsertRowid, numero });
-  } catch (err) {
-    log.error('app_post_os', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {cliente_id,veiculo_id,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,observacao,data}=req.body;
+    const valor=(parseFloat(valor_mo)||0)+(parseFloat(valor_pecas)||0);
+    const id=oid(req);
+    const cnt=await queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1",[id]);
+    const numero=String(+cnt.n+1).padStart(4,'0');
+    const r=await queryOne("INSERT INTO ordens_servico(oficina_id,cliente_id,veiculo_id,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,valor,observacao,data,numero) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id",[id,cliente_id||null,veiculo_id||null,descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||0,valor_pecas||0,valor,observacao||null,data||new Date().toISOString().split('T')[0],numero]);
+    res.status(201).json({id:r.id,numero});
+  } catch(err){log.error('app_post_os',err);res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/os/:id', (req, res) => {
+router.put('/os/:id', async (req,res) => {
   try {
-    const { descricao, servicos, pecas, pecas_itens, valor_mo, valor_pecas, status, observacao, cliente_id, veiculo_id, data } = req.body;
-    const statusValidos = ['em_andamento', 'finalizado'];
-    if (status && !statusValidos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
-    const valor = (parseFloat(valor_mo)||0) + (parseFloat(valor_pecas)||0);
-    db.prepare(`UPDATE ordens_servico SET descricao=COALESCE(?,descricao), servicos=COALESCE(?,servicos), pecas=COALESCE(?,pecas), pecas_itens=COALESCE(?,pecas_itens), valor_mo=COALESCE(?,valor_mo), valor_pecas=COALESCE(?,valor_pecas), valor=?, status=COALESCE(?,status), observacao=COALESCE(?,observacao), cliente_id=COALESCE(?,cliente_id), veiculo_id=COALESCE(?,veiculo_id), data=COALESCE(?,data) WHERE id=? AND oficina_id=?`)
-      .run(descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_put_os', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,status,observacao,cliente_id,veiculo_id,data}=req.body;
+    if(status&&!['em_andamento','finalizado'].includes(status)) return res.status(400).json({error:'Status inválido'});
+    const valor=(parseFloat(valor_mo)||0)+(parseFloat(valor_pecas)||0);
+    await run("UPDATE ordens_servico SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),pecas_itens=COALESCE($4,pecas_itens),valor_mo=COALESCE($5,valor_mo),valor_pecas=COALESCE($6,valor_pecas),valor=$7,status=COALESCE($8,status),observacao=COALESCE($9,observacao),cliente_id=COALESCE($10,cliente_id),veiculo_id=COALESCE($11,veiculo_id),data=COALESCE($12,data) WHERE id=$13 AND oficina_id=$14",[descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){log.error('app_put_os',err);res.status(500).json({error:'Erro interno'});}
 });
 
-router.patch('/os/:id/status', (req, res) => {
+router.patch('/os/:id/status', async (req,res) => {
   try {
-    const { status } = req.body;
-    if (!['em_andamento', 'finalizado'].includes(status)) {
-      return res.status(400).json({ error: 'Status inválido' });
-    }
-    db.prepare('UPDATE ordens_servico SET status = ? WHERE id = ? AND oficina_id = ?').run(status, req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_patch_os_status', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+    const {status}=req.body;
+    if(!['em_andamento','finalizado'].includes(status)) return res.status(400).json({error:'Status inválido'});
+    await run('UPDATE ordens_servico SET status=$1 WHERE id=$2 AND oficina_id=$3',[status,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/os/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM ordens_servico WHERE id = ? AND oficina_id = ?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) {
-    log.error('app_delete_os', err);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
+router.delete('/os/:id', async (req,res) => {
+  try { await run('DELETE FROM ordens_servico WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-module.exports = router;
-
-// ─── LEMBRETES ───────────────────────────────────────────────
-router.get('/lembretes', (req, res) => {
+// LEMBRETES
+router.get('/lembretes', async (req,res) => {
   try {
-    const rows = db.prepare(`
-      SELECT l.*, v.modelo as veiculo_modelo, v.placa, c.nome as cliente_nome
-      FROM lembretes l
-      LEFT JOIN veiculos v ON v.id = l.veiculo_id
-      LEFT JOIN clientes c ON c.id = v.cliente_id
-      WHERE l.oficina_id = ? ORDER BY l.data_previsao ASC
-    `).all(oid(req));
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    res.json(await query("SELECT l.*,v.modelo as veiculo_modelo,v.placa,v.marca FROM lembretes l LEFT JOIN veiculos v ON v.id=l.veiculo_id WHERE l.oficina_id=$1 ORDER BY COALESCE(l.data_previsao,'9999')",[oid(req)]));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/lembretes', (req, res) => {
+router.post('/lembretes', async (req,res) => {
   try {
-    const { veiculo_id, tipo, descricao, data_previsao, km_previsao } = req.body;
-    if (!descricao) return res.status(400).json({ error: 'Descrição obrigatória' });
-    const r = db.prepare('INSERT INTO lembretes (oficina_id,veiculo_id,tipo,descricao,data_previsao,km_previsao) VALUES (?,?,?,?,?,?)')
-      .run(oid(req), veiculo_id||null, tipo||'outro', descricao, data_previsao||null, km_previsao||null);
-    res.status(201).json({ id: r.lastInsertRowid });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {veiculo_id,tipo,descricao,data_previsao,km_previsao}=req.body;
+    const r=await queryOne("INSERT INTO lembretes(oficina_id,veiculo_id,tipo,descricao,data_previsao,km_previsao) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",[oid(req),veiculo_id||null,tipo||'outro',descricao,data_previsao||null,km_previsao||null]);
+    res.status(201).json({id:r.id});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/lembretes/:id', (req, res) => {
+router.put('/lembretes/:id', async (req,res) => {
   try {
-    const { veiculo_id, tipo, descricao, data_previsao, km_previsao, visto } = req.body;
-    db.prepare('UPDATE lembretes SET veiculo_id=COALESCE(?,veiculo_id),tipo=COALESCE(?,tipo),descricao=COALESCE(?,descricao),data_previsao=COALESCE(?,data_previsao),km_previsao=COALESCE(?,km_previsao),visto=COALESCE(?,visto) WHERE id=? AND oficina_id=?')
-      .run(veiculo_id||null,tipo||null,descricao||null,data_previsao||null,km_previsao||null,visto!=null?visto:null,req.params.id,oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {veiculo_id,tipo,descricao,data_previsao,km_previsao,visto}=req.body;
+    await run("UPDATE lembretes SET veiculo_id=COALESCE($1,veiculo_id),tipo=COALESCE($2,tipo),descricao=COALESCE($3,descricao),data_previsao=COALESCE($4,data_previsao),km_previsao=COALESCE($5,km_previsao),visto=COALESCE($6,visto) WHERE id=$7 AND oficina_id=$8",[veiculo_id||null,tipo||null,descricao||null,data_previsao||null,km_previsao||null,visto!=null?visto:null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/lembretes/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM lembretes WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+router.delete('/lembretes/:id', async (req,res) => {
+  try { await run('DELETE FROM lembretes WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── ESTOQUE ─────────────────────────────────────────────────
-router.get('/estoque', (req, res) => {
+// ESTOQUE
+router.get('/estoque', async (req,res) => {
   try {
-    const { categoria } = req.query;
-    let q = 'SELECT * FROM estoque WHERE oficina_id=?';
-    const p = [oid(req)];
-    if (categoria) { q += ' AND categoria=?'; p.push(categoria); }
-    q += ' ORDER BY nome';
-    res.json(db.prepare(q).all(...p));
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {categoria}=req.query;
+    let q='SELECT * FROM estoque WHERE oficina_id=$1';const p=[oid(req)];
+    if(categoria){q+=' AND categoria=$2';p.push(categoria);}
+    q+=' ORDER BY nome';
+    res.json(await query(q,p));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/estoque', (req, res) => {
+router.post('/estoque', async (req,res) => {
   try {
-    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs, codigo_barras } = req.body;
-    if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
-    const r = db.prepare('INSERT INTO estoque (oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null,codigo_barras||null);
-    res.status(201).json({ id: r.lastInsertRowid });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras}=req.body;
+    if(!nome) return res.status(400).json({error:'Nome obrigatório'});
+    const r=await queryOne("INSERT INTO estoque(oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id",[oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null,codigo_barras||null]);
+    res.status(201).json({id:r.id});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/estoque/:id', (req, res) => {
+router.put('/estoque/:id', async (req,res) => {
   try {
-    const { nome, categoria, tipo, marca, aplicacao, quantidade, estoque_min, preco, data_compra, obs, codigo_barras } = req.body;
-    db.prepare('UPDATE estoque SET nome=COALESCE(?,nome),categoria=COALESCE(?,categoria),tipo=COALESCE(?,tipo),marca=COALESCE(?,marca),aplicacao=COALESCE(?,aplicacao),quantidade=COALESCE(?,quantidade),estoque_min=COALESCE(?,estoque_min),preco=COALESCE(?,preco),data_compra=COALESCE(?,data_compra),obs=COALESCE(?,obs),codigo_barras=COALESCE(?,codigo_barras) WHERE id=? AND oficina_id=?')
-      .run(nome||null,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,codigo_barras||null,req.params.id,oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras}=req.body;
+    await run("UPDATE estoque SET nome=COALESCE($1,nome),categoria=COALESCE($2,categoria),tipo=COALESCE($3,tipo),marca=COALESCE($4,marca),aplicacao=COALESCE($5,aplicacao),quantidade=COALESCE($6,quantidade),estoque_min=COALESCE($7,estoque_min),preco=COALESCE($8,preco),data_compra=COALESCE($9,data_compra),obs=COALESCE($10,obs),codigo_barras=COALESCE($11,codigo_barras) WHERE id=$12 AND oficina_id=$13",[nome,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,codigo_barras||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/estoque/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM estoque WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+router.delete('/estoque/:id', async (req,res) => {
+  try { await run('DELETE FROM estoque WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── DESPESAS ────────────────────────────────────────────────
-router.get('/despesas', (req, res) => {
+// DESPESAS
+router.get('/despesas', async (req,res) => {
   try {
-    const { inicio, fim } = req.query;
-    let q = 'SELECT * FROM despesas WHERE oficina_id=?';
-    const p = [oid(req)];
-    if (inicio) { q += ' AND data>=?'; p.push(inicio); }
-    if (fim)    { q += ' AND data<=?'; p.push(fim); }
-    q += ' ORDER BY data DESC';
-    res.json(db.prepare(q).all(...p));
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {inicio,fim}=req.query;
+    let q='SELECT * FROM despesas WHERE oficina_id=$1';const p=[oid(req)];
+    if(inicio){q+=' AND data>=$2';p.push(inicio);}
+    if(fim){q+=` AND data<=$${p.length+1}`;p.push(fim);}
+    q+=' ORDER BY data DESC';
+    res.json(await query(q,p));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/despesas', (req, res) => {
+router.post('/despesas', async (req,res) => {
   try {
-    const { descricao, categoria, valor, data, vencimento, pago, obs } = req.body;
-    if (!descricao || !valor || !data) return res.status(400).json({ error: 'Campos obrigatórios faltando' });
-    const r = db.prepare('INSERT INTO despesas (oficina_id,descricao,categoria,valor,data,vencimento,pago,obs) VALUES (?,?,?,?,?,?,?,?)')
-      .run(oid(req),descricao,categoria||'Outros',valor,data,vencimento||null,pago?1:0,obs||null);
-    res.status(201).json({ id: r.lastInsertRowid });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {descricao,categoria,valor,data,vencimento,pago,obs}=req.body;
+    const r=await queryOne("INSERT INTO despesas(oficina_id,descricao,categoria,valor,data,vencimento,pago,obs) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",[oid(req),descricao,categoria||'Outros',valor,data,vencimento||null,pago?1:0,obs||null]);
+    res.status(201).json({id:r.id});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/despesas/:id', (req, res) => {
+router.put('/despesas/:id', async (req,res) => {
   try {
-    const { descricao, categoria, valor, data, vencimento, pago, obs } = req.body;
-    db.prepare('UPDATE despesas SET descricao=COALESCE(?,descricao),categoria=COALESCE(?,categoria),valor=COALESCE(?,valor),data=COALESCE(?,data),vencimento=COALESCE(?,vencimento),pago=COALESCE(?,pago),obs=COALESCE(?,obs) WHERE id=? AND oficina_id=?')
-      .run(descricao||null,categoria||null,valor||null,data||null,vencimento||null,pago!=null?pago:null,obs||null,req.params.id,oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {descricao,categoria,valor,data,vencimento,pago,obs}=req.body;
+    await run("UPDATE despesas SET descricao=COALESCE($1,descricao),categoria=COALESCE($2,categoria),valor=COALESCE($3,valor),data=COALESCE($4,data),vencimento=COALESCE($5,vencimento),pago=COALESCE($6,pago),obs=COALESCE($7,obs) WHERE id=$8 AND oficina_id=$9",[descricao||null,categoria||null,valor||null,data||null,vencimento||null,pago!=null?pago:null,obs||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/despesas/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM despesas WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+router.delete('/despesas/:id', async (req,res) => {
+  try { await run('DELETE FROM despesas WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── ORÇAMENTOS ──────────────────────────────────────────────
-router.get('/orcamentos', (req, res) => {
+// ORÇAMENTOS
+router.get('/orcamentos', async (req,res) => {
   try {
-    const rows = db.prepare(`
-      SELECT o.*, c.nome as cliente_nome, v.modelo as veiculo_modelo, v.placa
-      FROM orcamentos o
-      LEFT JOIN clientes c ON c.id = o.cliente_id
-      LEFT JOIN veiculos v ON v.id = o.veiculo_id
-      WHERE o.oficina_id=? ORDER BY o.id DESC
-    `).all(oid(req));
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    res.json(await query("SELECT o.*,c.nome as cliente_nome,v.modelo as veiculo_modelo,v.placa FROM orcamentos o LEFT JOIN clientes c ON c.id=o.cliente_id LEFT JOIN veiculos v ON v.id=o.veiculo_id WHERE o.oficina_id=$1 ORDER BY o.id DESC",[oid(req)]));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/orcamentos', (req, res) => {
+router.post('/orcamentos', async (req,res) => {
   try {
-    const { cliente_id, veiculo_id, descricao, servicos, pecas, valor_mo, valor_pecas, status, validade, obs } = req.body;
-    const id = oid(req);
-    const count = db.prepare("SELECT COUNT(*) as n FROM orcamentos WHERE oficina_id=?").get(id).n;
-    const numero = 'ORC-' + String(count + 1).padStart(4, '0');
-    const r = db.prepare('INSERT INTO orcamentos (oficina_id,cliente_id,veiculo_id,numero,descricao,servicos,pecas,valor_mo,valor_pecas,status,validade,obs) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-      .run(id,cliente_id||null,veiculo_id||null,numero,descricao||null,servicos||null,pecas||null,valor_mo||0,valor_pecas||0,status||'pendente',validade||null,obs||null);
-    res.status(201).json({ id: r.lastInsertRowid, numero });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {cliente_id,veiculo_id,descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs}=req.body;
+    const cnt=await queryOne("SELECT COUNT(*) n FROM orcamentos WHERE oficina_id=$1",[oid(req)]);
+    const numero='ORC-'+String(+cnt.n+1).padStart(4,'0');
+    const r=await queryOne("INSERT INTO orcamentos(oficina_id,cliente_id,veiculo_id,numero,descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id",[oid(req),cliente_id||null,veiculo_id||null,numero,descricao||null,servicos||null,pecas||null,valor_mo||0,valor_pecas||0,desconto||0,status||'pendente',validade||null,obs||null]);
+    res.status(201).json({id:r.id,numero});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/orcamentos/:id', (req, res) => {
+router.put('/orcamentos/:id', async (req,res) => {
   try {
-    const { descricao, servicos, pecas, valor_mo, valor_pecas, status, validade, obs, cliente_id, veiculo_id } = req.body;
-    db.prepare('UPDATE orcamentos SET descricao=COALESCE(?,descricao),servicos=COALESCE(?,servicos),pecas=COALESCE(?,pecas),valor_mo=COALESCE(?,valor_mo),valor_pecas=COALESCE(?,valor_pecas),status=COALESCE(?,status),validade=COALESCE(?,validade),obs=COALESCE(?,obs),cliente_id=COALESCE(?,cliente_id),veiculo_id=COALESCE(?,veiculo_id) WHERE id=? AND oficina_id=?')
-      .run(descricao||null,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,status||null,validade||null,obs||null,cliente_id||null,veiculo_id||null,req.params.id,oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs,cliente_id,veiculo_id}=req.body;
+    await run("UPDATE orcamentos SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),valor_mo=COALESCE($4,valor_mo),valor_pecas=COALESCE($5,valor_pecas),desconto=COALESCE($6,desconto),status=COALESCE($7,status),validade=COALESCE($8,validade),obs=COALESCE($9,obs),cliente_id=COALESCE($10,cliente_id),veiculo_id=COALESCE($11,veiculo_id) WHERE id=$12 AND oficina_id=$13",[descricao||null,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,desconto||null,status||null,validade||null,obs||null,cliente_id||null,veiculo_id||null,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/orcamentos/:id', (req, res) => {
+router.patch('/orcamentos/:id/status', async (req,res) => {
   try {
-    db.prepare('DELETE FROM orcamentos WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {status}=req.body;
+    if(!['pendente','aprovado','rejeitado'].includes(status)) return res.status(400).json({error:'Status inválido'});
+    await run('UPDATE orcamentos SET status=$1 WHERE id=$2 AND oficina_id=$3',[status,req.params.id,oid(req)]);
+    res.json({ok:true});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.patch('/orcamentos/:id/status', (req, res) => {
-  try {
-    const { status } = req.body;
-    const validos = ['pendente','aprovado','rejeitado'];
-    if (!validos.includes(status)) return res.status(400).json({ error: 'Status inválido' });
-    db.prepare('UPDATE orcamentos SET status=? WHERE id=? AND oficina_id=?').run(status, req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+router.delete('/orcamentos/:id', async (req,res) => {
+  try { await run('DELETE FROM orcamentos WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// ─── AGENDA ──────────────────────────────────────────────────
-router.get('/agenda', (req, res) => {
+// AGENDA
+router.get('/agenda', async (req,res) => {
   try {
-    const { data } = req.query;
-    let q = `SELECT a.*, c.nome as cliente_nome, v.modelo as veiculo_modelo FROM agenda a LEFT JOIN clientes c ON c.id=a.cliente_id LEFT JOIN veiculos v ON v.id=a.veiculo_id WHERE a.oficina_id=?`;
-    const p = [oid(req)];
-    if (data) { q += ' AND a.data=?'; p.push(data); }
-    q += ' ORDER BY a.data, a.hora';
-    res.json(db.prepare(q).all(...p));
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {data}=req.query;
+    let q="SELECT a.*,c.nome as cliente_nome,v.modelo as veiculo_modelo FROM agenda a LEFT JOIN clientes c ON c.id=a.cliente_id LEFT JOIN veiculos v ON v.id=a.veiculo_id WHERE a.oficina_id=$1";
+    const p=[oid(req)];
+    if(data){q+=' AND a.data=$2';p.push(data);}
+    q+=' ORDER BY a.data,a.hora';
+    res.json(await query(q,p));
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/agenda', (req, res) => {
+router.post('/agenda', async (req,res) => {
   try {
-    const { cliente_id, veiculo_id, titulo, data, hora, descricao } = req.body;
-    if (!titulo || !data) return res.status(400).json({ error: 'Título e data obrigatórios' });
-    const r = db.prepare('INSERT INTO agenda (oficina_id,cliente_id,veiculo_id,titulo,data,hora,descricao) VALUES (?,?,?,?,?,?,?)')
-      .run(oid(req),cliente_id||null,veiculo_id||null,titulo,data,hora||null,descricao||null);
-    res.status(201).json({ id: r.lastInsertRowid });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+    const {cliente_id,veiculo_id,titulo,data,hora,descricao}=req.body;
+    const r=await queryOne("INSERT INTO agenda(oficina_id,cliente_id,veiculo_id,titulo,data,hora,descricao) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id",[oid(req),cliente_id||null,veiculo_id||null,titulo,data,hora||null,descricao||null]);
+    res.status(201).json({id:r.id});
+  } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/agenda/:id', (req, res) => {
-  try {
-    db.prepare('DELETE FROM agenda WHERE id=? AND oficina_id=?').run(req.params.id, oid(req));
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erro interno' }); }
+router.delete('/agenda/:id', async (req,res) => {
+  try { await run('DELETE FROM agenda WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
+  catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
 module.exports = router;

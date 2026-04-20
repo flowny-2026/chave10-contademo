@@ -78,7 +78,14 @@ app.use((err, req, res, next) => {
 });
 
 // ── START ─────────────────────────────────────────────────────
-// Em produção, rode atrás de um proxy reverso (nginx/caddy) com HTTPS
-// O Express não precisa gerenciar TLS diretamente nesse setup
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`✅ Chave 10 backend rodando na porta ${PORT} [${process.env.NODE_ENV || 'development'}]`));
+const { initDB } = require('./db');
+
+initDB()
+  .then(() => {
+    app.listen(PORT, () => console.log(`✅ Chave 10 backend rodando na porta ${PORT} [${process.env.NODE_ENV || 'development'}]`));
+  })
+  .catch(err => {
+    console.error('❌ Erro ao inicializar banco:', err);
+    process.exit(1);
+  });
