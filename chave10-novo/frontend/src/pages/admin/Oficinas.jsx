@@ -234,6 +234,8 @@ export default function AdminOficinas() {
                     {[
                       {l:'Email',v:detalhes.oficina.email},
                       {l:'Telefone',v:detalhes.oficina.telefone||'—'},
+                      {l:'CNPJ/CPF',v:detalhes.oficina.observacoes||'—'},
+                      {l:'Endereço',v:detalhes.oficina.endereco||'—'},
                       {l:'Plano',v:detalhes.oficina.plano},
                       {l:'Vencimento',v:fmt.date(detalhes.oficina.data_vencimento)},
                       {l:'Status',v:<span className={`badge ${STATUS_CLASS[detalhes.oficina.status_assinatura]}`}>{STATUS_LABEL[detalhes.oficina.status_assinatura]}</span>},
@@ -242,6 +244,12 @@ export default function AdminOficinas() {
                       <div key={item.l}><div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:2}}>{item.l}</div><div style={{fontSize:13.5,color:'var(--gray-800)'}}>{item.v}</div></div>
                     ))}
                   </div>
+                  {detalhes.oficina.logo && (
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:6}}>Logo</div>
+                      <img src={detalhes.oficina.logo} alt="Logo" style={{maxHeight:60,maxWidth:180,objectFit:'contain',borderRadius:6,border:'1px solid var(--gray-200)',padding:4}} />
+                    </div>
+                  )}
 
                   {/* Usuários */}
                   <div style={{marginBottom:16}}>
@@ -338,12 +346,16 @@ export default function AdminOficinas() {
                   <div className="form-group"><label>Email *</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} required /></div>
                   <div className="form-group"><label>Responsável</label><input value={form.responsavel||''} onChange={e=>setForm(f=>({...f,responsavel:e.target.value}))} /></div>
                   <div className="form-group"><label>Telefone</label><input value={form.telefone||''} onChange={e=>setForm(f=>({...f,telefone:e.target.value}))} /></div>
+                  <div className="form-group"><label>CNPJ / CPF</label><input value={form.observacoes||''} onChange={e=>setForm(f=>({...f,observacoes:e.target.value}))} placeholder="00.000.000/0000-00" /></div>
+                  <div className="form-group"><label>Endereço</label><input value={form.endereco||''} onChange={e=>setForm(f=>({...f,endereco:e.target.value}))} placeholder="Rua, número, bairro, cidade" /></div>
+                  <div className="form-group full"><label>Logo (URL)</label><input value={form.logo||''} onChange={e=>setForm(f=>({...f,logo:e.target.value}))} placeholder="https://..." /></div>
                   <div className="form-group">
                     <label>Plano</label>
                     <select value={form.plano} onChange={e=>setForm(f=>({...f,plano:e.target.value}))}>
                       <option value="mensal">Mensal</option>
                       <option value="trimestral">Trimestral</option>
                       <option value="anual">Anual</option>
+                      <option value="trial">Trial</option>
                     </select>
                   </div>
                   <div className="form-group"><label>Vencimento</label><input type="date" value={form.data_vencimento||''} onChange={e=>setForm(f=>({...f,data_vencimento:e.target.value}))} /></div>
