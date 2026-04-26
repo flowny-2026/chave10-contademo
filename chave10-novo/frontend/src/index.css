@@ -2228,3 +2228,223 @@ tbody tr { transition: background .12s; }
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+
+/* ══════════════════════════════════════════
+   MOBILE FIRST — MELHORIAS UX/UI
+   Chave 10 — Responsividade aprimorada
+══════════════════════════════════════════ */
+
+/* ── Bottom Nav Mobile ── */
+.bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #fff;
+  border-top: 1px solid var(--gray-200);
+  z-index: 200;
+  padding: 0 4px env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.08);
+}
+.bottom-nav-inner {
+  display: flex; align-items: stretch;
+  height: 58px;
+}
+.bottom-nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px; padding: 6px 2px;
+  background: none; border: none;
+  color: var(--gray-400); cursor: pointer;
+  font-size: 10px; font-weight: 600;
+  font-family: inherit;
+  text-decoration: none;
+  transition: color .15s;
+  position: relative;
+}
+.bottom-nav-item.active { color: var(--brand); }
+.bottom-nav-item.active svg { color: var(--brand); }
+.bottom-nav-item svg { color: var(--gray-400); transition: color .15s; }
+.bottom-nav-item.active::before {
+  content: '';
+  position: absolute; top: 0; left: 20%; right: 20%;
+  height: 2px; background: var(--accent);
+  border-radius: 0 0 4px 4px;
+}
+.bottom-nav-item.btn-nova-os {
+  color: #fff;
+}
+.bottom-nav-item.btn-nova-os .bnav-icon-wrap {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(249,115,22,.45);
+  margin-bottom: 0;
+}
+.bottom-nav-item.btn-nova-os svg { color: #fff; }
+.bottom-nav-item.btn-nova-os span { color: var(--accent); font-weight: 700; }
+.bnav-label { font-size: 9.5px; line-height: 1; }
+
+/* ── FAB Nova OS (alternativa ao bottom nav) ── */
+.fab-nova-os {
+  display: none;
+  position: fixed; bottom: 80px; right: 18px;
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  border: none; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(249,115,22,.5);
+  align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 300;
+  z-index: 150;
+  transition: transform .2s, box-shadow .2s;
+}
+.fab-nova-os:active { transform: scale(.93); }
+
+/* ── Cards mobile melhorados ── */
+@media (max-width: 768px) {
+  /* Bottom nav visível */
+  .bottom-nav { display: flex; }
+
+  /* Padding extra no conteúdo para não ficar atrás do bottom nav */
+  .main-content { padding-bottom: 72px; }
+
+  /* Topbar simplificada */
+  .topbar { padding: 0 12px; height: 52px; gap: 6px; }
+  .topbar-quick-actions { display: none; } /* ações ficam no bottom nav */
+
+  /* Stat cards: 2 colunas compactas */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 14px 14px; gap: 10px; }
+  .stat-icon { width: 38px; height: 38px; border-radius: 9px; }
+  .stat-value { font-size: 19px !important; }
+  .stat-label { font-size: 11.5px; }
+  .stat-var { font-size: 10.5px; }
+
+  /* Page header mobile */
+  .page-header { margin-bottom: 16px; gap: 8px; }
+  .page-title { font-size: 19px; }
+  .page-header .btn { display: none; } /* botão fica no bottom nav */
+
+  /* Cards */
+  .card { padding: 14px; border-radius: var(--r-sm); }
+
+  /* Tabelas → cards no mobile */
+  .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--r-sm); }
+  table { min-width: 480px; }
+  thead th { padding: 9px 12px; font-size: 11px; }
+  tbody td { padding: 11px 12px; font-size: 13px; }
+
+  /* Botões de ação nas tabelas: menores */
+  .btn-sm { padding: 5px 9px; font-size: 12px; min-height: 30px; }
+
+  /* Modal bottom sheet */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    border-radius: 20px 20px 0 0;
+    max-height: 94vh;
+    width: 100%;
+  }
+  .modal-header { padding: 14px 18px; }
+  .modal-header::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px;
+    background: var(--gray-200);
+    border-radius: 2px;
+    margin: 0 auto 12px;
+  }
+  .modal-body { padding: 16px 18px 24px; }
+
+  /* Formulários mobile */
+  .form-grid { grid-template-columns: 1fr; gap: 12px; }
+  input, select, textarea { font-size: 16px; padding: 12px 14px; min-height: 46px; }
+  textarea { min-height: 90px; }
+  label { font-size: 13px; }
+  .form-actions {
+    flex-direction: column-reverse; gap: 8px;
+    padding-top: 14px; margin-top: 4px;
+  }
+  .form-actions .btn { width: 100%; justify-content: center; min-height: 46px; font-size: 14px; }
+
+  /* Search bar */
+  .search-bar { flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .search-bar select, .search-bar .dash-select { width: 100%; }
+  .search-input-wrap input { font-size: 16px; padding: 11px 12px 11px 38px; }
+
+  /* Dashboard toolbar */
+  .dash-toolbar { padding: 12px 14px; gap: 8px; }
+  .dash-meta-inline { margin-left: 0; }
+
+  /* Financeiro cards */
+  .fin-summary { grid-template-columns: 1fr; gap: 10px; }
+  .fin-card { padding: 16px 18px; }
+  .fin-card-value { font-size: 22px; }
+
+  /* Lembrete cards */
+  .lembrete-card { padding: 12px 14px; gap: 10px; }
+
+  /* Estoque summary */
+  .estoque-summary { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .estoque-sum-card { padding: 12px 14px; gap: 10px; }
+  .estoque-sum-val { font-size: 17px; }
+
+  /* Toast */
+  .toast { bottom: 72px; right: 12px; left: 12px; text-align: center; }
+
+  /* Agenda grid simplificada */
+  .agenda-grid { grid-template-columns: 44px repeat(7, 1fr); }
+  .agenda-header-cell { padding: 6px 2px; font-size: 9.5px; }
+  .agenda-time-cell { font-size: 9.5px; padding: 0 3px; }
+  .agenda-event { font-size: 9.5px; padding: 2px 4px; }
+
+  /* Planos */
+  .planos-wrap { grid-template-columns: 1fr; gap: 16px; }
+
+  /* Dash grids */
+  .dash-grid-2, .dash-grid-3 { grid-template-columns: 1fr; gap: 14px; }
+  .dash-two-col { grid-template-columns: 1fr; gap: 14px; }
+
+  /* Pie chart */
+  .pie-wrap { flex-direction: column; align-items: center; }
+
+  /* OS detail */
+  .os-detail-grid { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* ── Mobile pequeno ≤ 480px ── */
+@media (max-width: 480px) {
+  .main-content { padding: 10px 10px 72px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-value { font-size: 17px !important; }
+  .stat-icon { width: 34px; height: 34px; }
+  .page-title { font-size: 17px; }
+  .card { padding: 12px; }
+  .topbar { padding: 0 10px; height: 50px; }
+  .estoque-summary { grid-template-columns: 1fr; }
+  table { min-width: 400px; }
+  thead th, tbody td { padding: 8px 10px; font-size: 12px; }
+  .modal { max-height: 96vh; }
+  .bottom-nav-inner { height: 54px; }
+  .bnav-label { display: none; } /* só ícones em telas muito pequenas */
+  .bottom-nav-item.btn-nova-os span { display: none; }
+}
+
+/* ── Tablet ≤ 1024px ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root { --sidebar-w: 210px; }
+  .main-content { padding: 20px 22px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid-3 { grid-template-columns: 1fr 1fr; }
+  .fin-summary { grid-template-columns: 1fr 1fr; }
+  .action-label { display: none; }
+  .topbar-action-btn { padding: 8px; }
+}
+
+/* ── Garantir que hover não quebre no touch ── */
+@media (hover: none) {
+  .stat-card:hover { transform: none; box-shadow: var(--sh); }
+  .btn-primary:hover { transform: none; }
+  .btn-outline:hover { transform: none; }
+  .lembrete-card:hover { transform: none; }
+  .nav-item:hover { transform: none; }
+}

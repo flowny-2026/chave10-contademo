@@ -257,6 +257,15 @@ export default function Layout({ area }) {
     </NavLink>
   );
 
+  // Bottom nav items para mobile (os mais usados)
+  const bottomNavItems = [
+    { to: '/app/dashboard', label: 'Início',    icon: IC.dashboard },
+    { to: '/app/clientes',  label: 'Clientes',  icon: IC.clientes },
+    { to: '/app/os',        label: 'Nova OS',   icon: IC.os, isMain: true },
+    { to: '/app/agenda',    label: 'Agenda',    icon: IC.agenda },
+    { to: '/app/orcamentos',label: 'Orçamentos',icon: IC.orcamentos },
+  ];
+
   return (
     <div className="app-shell">
       {open && <div className="sidebar-overlay open" onClick={() => setOpen(false)} />}
@@ -359,10 +368,38 @@ export default function Layout({ area }) {
             <UserDropdown user={user} onLogout={logout} />
           </div>
         </header>
+
         <main className="main-content">
           <Outlet />
         </main>
       </div>
+
+      {/* Bottom Navigation — apenas mobile, apenas app */}
+      {area === 'app' && (
+        <nav className="bottom-nav">
+          <div className="bottom-nav-inner">
+            {bottomNavItems.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `bottom-nav-item${item.isMain ? ' btn-nova-os' : ''}${isActive && !item.isMain ? ' active' : ''}`}
+              >
+                {item.isMain ? (
+                  <>
+                    <div className="bnav-icon-wrap">{item.icon}</div>
+                    <span className="bnav-label">Nova OS</span>
+                  </>
+                ) : (
+                  <>
+                    {item.icon}
+                    <span className="bnav-label">{item.label}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
