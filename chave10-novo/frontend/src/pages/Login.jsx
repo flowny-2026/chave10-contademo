@@ -218,6 +218,13 @@ export default function Login() {
             {erro && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}>{erro}</p>}
             <button className="btn btn-primary login-btn" type="submit" disabled={loading}>{loading ? 'Verificando...' : 'Entrar na conta'}</button>
           </form>
+
+          <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--gray-500)' }}>
+            Não tem uma conta?{' '}
+            <span style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }} onClick={() => navigate('/cadastro')}>
+              Criar conta grátis
+            </span>
+          </div>
         </div>
       </div>
     </div>

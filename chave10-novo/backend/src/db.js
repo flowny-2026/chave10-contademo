@@ -180,6 +180,10 @@ async function initDB() {
     ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS pecas_itens TEXT;
   `).catch(() => {});
 
+  // Migration: adiciona logo e endereco em oficinas se não existir
+  await pool.query(`ALTER TABLE oficinas ADD COLUMN IF NOT EXISTS logo TEXT;`).catch(() => {});
+  await pool.query(`ALTER TABLE oficinas ADD COLUMN IF NOT EXISTS endereco TEXT;`).catch(() => {});
+
   // Cria master_admin se não existir
   const admin = await queryOne("SELECT id FROM usuarios WHERE perfil = 'master_admin'");
   if (!admin) {

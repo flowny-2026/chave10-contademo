@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Cadastro from './pages/Cadastro';
 import AdminLogin from './pages/AdminLogin';
 import Bloqueado from './pages/Bloqueado';
 import Layout from './components/Layout';
@@ -45,6 +46,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/bloqueado" element={<Bloqueado />} />
 

@@ -4,12 +4,13 @@ function getToken() {
   return localStorage.getItem('c10_token');
 }
 
-async function req(method, url, body) {
+async function req(method, url, body, customToken) {
+  const token = customToken || getToken();
   const res = await fetch(BASE + url, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(getToken() ? { Authorization: 'Bearer ' + getToken() } : {}),
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -28,6 +29,9 @@ export const api = {
   auth: {
     login: (email, senha) => post('/auth/login', { email, senha }),
     googleLogin: (credential) => post('/auth/google', { credential }),
+    register: (data) => post('/auth/register', data),
+    googleRegister: (credential) => post('/auth/google-register', { credential }),
+    completeOficina: (token, data) => req('POST', '/auth/complete-oficina', data, token),
   },
   admin: {
     dashboard: ()                    => get('/admin/dashboard'),
