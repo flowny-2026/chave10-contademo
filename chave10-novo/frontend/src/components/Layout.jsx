@@ -47,6 +47,145 @@ function getUser() {
   try { return JSON.parse(localStorage.getItem('c10_user')); } catch { return null; }
 }
 
+// ── Popup de aviso de vencimento ─────────────────────────────
+function VencimentoAlert() {
+  const user = getUser();
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!user?.data_vencimento) return;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(user.data_vencimento + 'T00:00:00');
+    const diasRestantes = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
+    if (diasRestantes >= 0 && diasRestantes <= 5) {
+      setVisible(true);
+    }
+  }, []);
+
+  if (!visible) return null;
+
+  const venc = new Date(user.data_vencimento + 'T00:00:00');
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const diasRestantes = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
+  const isHoje = diasRestantes === 0;
+  const isAmanha = diasRestantes === 1;
+
+  const fmtDate = iso => {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+      animation: 'fadeIn .2s ease',
+    }}>
+      <div style={{
+        background: '#fff',
+        borderRadius: 16,
+        maxWidth: 440,
+        width: '100%',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        animation: 'slideUp .25s ease',
+      }}>
+        {/* Topo colorido */}
+        <div style={{
+          background: isHoje
+            ? 'linear-gradient(135deg,#dc2626,#ef4444)'
+            : diasRestantes <= 2
+            ? 'linear-gradient(135deg,#d97706,#f59e0b)'
+            : 'linear-gradient(135deg,#1E3A5F,#2d5a8e)',
+          padding: '28px 32px 24px',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>
+            {isHoje ? '🚨' : diasRestantes <= 2 ? '⚠️' : '🔔'}
+          </div>
+          <div style={{ fontFamily: 'Poppins,sans-serif', fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+            {isHoje
+              ? 'Plano vence hoje!'
+              : isAmanha
+              ? 'Plano vence amanhã!'
+              : `Plano vence em ${diasRestantes} dias`}
+          </div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>
+            Vencimento: {fmtDate(user.data_vencimento)}
+          </div>
+        </div>
+
+        {/* Corpo */}
+        <div style={{ padding: '24px 32px 28px' }}>
+          <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+            {isHoje
+              ? 'Seu plano vence hoje. Renove agora para não perder o acesso ao sistema.'
+              : `Seu plano vence em ${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}. Renove antes do prazo para garantir a continuidade do serviço.`}
+          </p>
+
+          <div style={{
+            background: '#FFF7ED',
+            border: '1px solid #FED7AA',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <span style={{ fontSize: 20 }}>💡</span>
+            <span style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+              Entre em contato com o suporte para renovar seu plano e continuar usando o Chave 10 sem interrupções.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setVisible(false)}
+              style={{
+                flex: 1, padding: '11px 0', borderRadius: 8,
+                border: '1.5px solid #E5E7EB', background: '#fff',
+                fontSize: 14, fontWeight: 600, color: '#6B7280',
+                cursor: 'pointer',
+              }}
+            >
+              Fechar
+            </button>
+            <button
+              onClick={() => {
+                setVisible(false);
+                window.open('https://wa.me/5516992915540?text=Olá,%20preciso%20renovar%20meu%20plano%20do%20Chave%2010.', '_blank');
+              }}
+              style={{
+                flex: 2, padding: '11px 0', borderRadius: 8,
+                border: 'none',
+                background: '#25D366',
+                fontSize: 14, fontWeight: 700, color: '#fff',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                boxShadow: '0 2px 8px rgba(37,211,102,.35)',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+              </svg>
+              Renovar pelo WhatsApp
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:translateY(0) } }
+      `}</style>
+    </div>
+  );
+}
+
 function UserDropdown({ user, onLogout }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -64,7 +203,7 @@ function UserDropdown({ user, onLogout }) {
         <div className="topbar-avatar">{user?.nome?.[0]?.toUpperCase() || 'U'}</div>
         <div className="topbar-user-info">
           <span className="topbar-user-name">{user?.nome || 'Usuário'}</span>
-          <span className="topbar-user-role">{user?.perfil === 'master_admin' ? 'Administrador' : 'Gerente'}</span>
+          <span className="topbar-user-role">{user?.perfil === 'master_admin' ? 'Administrador' : user?.perfil === 'funcionario' ? 'Funcionário' : 'Gerente'}</span>
         </div>
         <svg style={{ marginLeft: 4, color: 'var(--gray-400)', flexShrink: 0 }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
@@ -74,16 +213,18 @@ function UserDropdown({ user, onLogout }) {
             <div className="udrop-avatar">{user?.nome?.[0]?.toUpperCase() || 'U'}</div>
             <div>
               <div className="udrop-name">{user?.nome}</div>
-              <div className="udrop-role">{user?.perfil === 'master_admin' ? 'Administrador' : 'Gerente · oficina'}</div>
+              <div className="udrop-role">{user?.perfil === 'master_admin' ? 'Administrador' : user?.perfil === 'funcionario' ? 'Funcionário · oficina' : 'Gerente · oficina'}</div>
             </div>
           </div>
           <div className="udrop-divider" />
           <button className="udrop-item" onClick={() => { setOpen(false); navigate('/app/dashboard'); }}>
             {IC.dashboard} Dashboard
           </button>
-          <button className="udrop-item" onClick={() => { setOpen(false); navigate('/app/configuracoes'); }}>
-            {IC.configuracoes} Configurações
-          </button>
+          {user?.perfil !== 'funcionario' && (
+            <button className="udrop-item" onClick={() => { setOpen(false); navigate('/app/configuracoes'); }}>
+              {IC.configuracoes} Configurações
+            </button>
+          )}
           <div className="udrop-divider" />
           <button className="udrop-item udrop-item-danger" onClick={() => { setOpen(false); onLogout(); }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -119,6 +260,7 @@ export default function Layout({ area }) {
   return (
     <div className="app-shell">
       {open && <div className="sidebar-overlay open" onClick={() => setOpen(false)} />}
+      {area === 'app' && user?.perfil !== 'master_admin' && <VencimentoAlert />}
 
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-brand">
@@ -143,7 +285,9 @@ export default function Layout({ area }) {
             </nav>
             <div className="sidebar-section-label">Gestão</div>
             <nav className="sidebar-nav">
-              {appNavGestao.map(item => <NavItem key={item.to} item={item} />)}
+              {appNavGestao
+                .filter(item => user?.perfil !== 'funcionario' || !['/app/financeiro', '/app/relatorios', '/app/configuracoes'].includes(item.to))
+                .map(item => <NavItem key={item.to} item={item} />)}
             </nav>
           </>
         )}

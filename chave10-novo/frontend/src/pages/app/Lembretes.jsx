@@ -25,7 +25,7 @@ export default function AppLembretes() {
   async function load() {
     try {
       const [l,v,c] = await Promise.all([
-        fetch('/api/app/lembretes',{headers:{Authorization:'Bearer '+localStorage.getItem('c10_token')}}).then(r=>r.json()),
+        api.app.lembretes.list(),
         api.app.veiculos.list(),
         api.app.clientes.list(),
       ]);
@@ -43,24 +43,20 @@ export default function AppLembretes() {
     e.preventDefault();
     if (!form.veiculo_id || !form.descricao.trim()) { showToast('Veículo e descrição são obrigatórios','error'); return; }
     try {
-      const token = localStorage.getItem('c10_token');
-      const url = editing ? `/api/app/lembretes/${editing}` : '/api/app/lembretes';
-      const method = editing ? 'PUT' : 'POST';
-      await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(form)});
+      if (editing) await api.app.lembretes.update(editing, form);
+      else await api.app.lembretes.create(form);
       setModal(false); load(); showToast('Lembrete salvo!');
     } catch { showToast('Erro ao salvar','error'); }
   }
 
   async function marcarVisto(id, visto) {
-    const token = localStorage.getItem('c10_token');
-    await fetch(`/api/app/lembretes/${id}`,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({visto:visto?1:0})});
+    await api.app.lembretes.update(id, { visto: visto ? 1 : 0 });
     load(); showToast(visto?'Marcado como visto':'Lembrete reativado');
   }
 
   async function remove(id) {
     if (!window.confirm('Deseja excluir este lembrete?')) return;
-    const token = localStorage.getItem('c10_token');
-    await fetch(`/api/app/lembretes/${id}`,{method:'DELETE',headers:{Authorization:'Bearer '+token}});
+    await api.app.lembretes.remove(id);
     load(); showToast('Lembrete excluído');
   }
 

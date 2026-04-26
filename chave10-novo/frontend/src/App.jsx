@@ -23,11 +23,12 @@ function getUser() {
   try { return JSON.parse(localStorage.getItem('c10_user')); } catch { return null; }
 }
 
-function PrivateRoute({ children, adminOnly = false }) {
+function PrivateRoute({ children, adminOnly = false, noFuncionario = false }) {
   const user = getUser();
   if (!user && adminOnly) return <Navigate to="/admin/login" replace />;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && user.perfil !== 'master_admin') return <Navigate to="/app/dashboard" replace />;
+  if (noFuncionario && user.perfil === 'funcionario') return <Navigate to="/app/dashboard" replace />;
   return children;
 }
 
@@ -62,11 +63,11 @@ export default function App() {
           <Route path="orcamentos"   element={<AppOrcamentos />} />
           <Route path="agenda"       element={<AppAgenda />} />
           <Route path="mensagens"    element={<AppMensagens />} />
-          <Route path="financeiro"   element={<AppFinanceiro />} />
-          <Route path="relatorios"   element={<AppRelatorios />} />
+          <Route path="financeiro"   element={<PrivateRoute noFuncionario><AppFinanceiro /></PrivateRoute>} />
+          <Route path="relatorios"   element={<PrivateRoute noFuncionario><AppRelatorios /></PrivateRoute>} />
           <Route path="lembretes"    element={<AppLembretes />} />
           <Route path="estoque"      element={<AppEstoque />} />
-          <Route path="configuracoes" element={<AppConfiguracoes />} />
+          <Route path="configuracoes" element={<PrivateRoute noFuncionario><AppConfiguracoes /></PrivateRoute>} />
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>
 

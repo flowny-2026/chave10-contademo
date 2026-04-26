@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { api } from '../api';
 
 // ── Animação de loading ──────────────────────────────────────
@@ -75,6 +76,17 @@ export default function Login() {
   const navigate = useNavigate();
 
   const isAdminEmail = email.toLowerCase().includes('admin') || email.toLowerCase().includes('chave10');
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  function afterLogin(token, usuario) {
+    localStorage.setItem('c10_token', token);
+    localStorage.setItem('c10_user', JSON.stringify(usuario));
+    setShowLoader(true);
+    setTimeout(() => {
+      if (usuario.perfil === 'master_admin') navigate('/admin/dashboard');
+      else navigate('/app/dashboard');
+    }, 3200);
+  }
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -82,19 +94,29 @@ export default function Login() {
     setLoading(true);
     try {
       const { token, usuario } = await api.auth.login(email, senha);
-      localStorage.setItem('c10_token', token);
-      localStorage.setItem('c10_user', JSON.stringify(usuario));
-      setShowLoader(true);
-      setTimeout(() => {
-        if (usuario.perfil === 'master_admin') navigate('/admin/dashboard');
-        else navigate('/app/dashboard');
-      }, 3200);
+      afterLogin(token, usuario);
     } catch (err) {
       setLoading(false);
       if (err.error === 'blocked' || err.error === 'overdue') {
         navigate('/bloqueado');
       } else {
         setErro(err.error || 'Credenciais inválidas');
+      }
+    }
+  }
+
+  async function handleGoogleSuccess({ credential }) {
+    setErro('');
+    setLoading(true);
+    try {
+      const { token, usuario } = await api.auth.googleLogin(credential);
+      afterLogin(token, usuario);
+    } catch (err) {
+      setLoading(false);
+      if (err.error === 'blocked' || err.error === 'overdue') {
+        navigate('/bloqueado');
+      } else {
+        setErro(err.error || 'Erro ao autenticar com Google');
       }
     }
   }
@@ -159,6 +181,31 @@ export default function Login() {
           </div>
           <h1 className="login-title">Acesse sua conta</h1>
           <p className="login-subtitle">Sistema completo para gestão de oficinas.</p>
+
+          {/* Botão Google */}
+          {googleClientId && (
+            <div style={{ marginBottom: 20 }}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setErro('Falha ao conectar com o Google')}
+                width="100%"
+                text="signin_with"
+                shape="rectangular"
+                logo_alignment="left"
+                locale="pt-BR"
+              />
+            </div>
+          )}
+
+          {/* Divisor */}
+          {googleClientId && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
+              <span style={{ fontSize: 12, color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>ou entre com e-mail</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
+            </div>
+          )}
+
           <form onSubmit={handleLogin}>
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label>E-mail</label>

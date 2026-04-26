@@ -6,6 +6,10 @@ const fmt = {
   currency: v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'),
 };
 
+function getUser() {
+  try { return JSON.parse(localStorage.getItem('c10_user')); } catch { return null; }
+}
+
 function BarChart({ data }) {
   if (!data?.length || data.every(d => d.total === 0))
     return <div className="empty-state" style={{padding:24}}><p>Sem dados</p></div>;
@@ -50,6 +54,7 @@ export default function AppDashboard() {
   const stats = data?.stats || {};
   const recentes = data?.recentes || [];
   const faturamentoMensal = data?.faturamentoMensal || [];
+  const isFuncionario = getUser()?.perfil === 'funcionario';
   const fat = parseFloat(stats.faturamentoMes||0);
   const now = new Date();
   const diasRestantes = Math.max(1, new Date(now.getFullYear(),now.getMonth()+1,0).getDate() - now.getDate());
@@ -60,6 +65,7 @@ export default function AppDashboard() {
   return (
     <div>
       {/* HERO */}
+      {!isFuncionario && (
       <div style={{background:'linear-gradient(135deg,var(--brand) 0%,var(--brand-mid) 100%)',borderRadius:'var(--r-lg)',padding:'28px 32px',marginBottom:24,position:'relative',overflow:'hidden'}}>
         <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 80% 50%,rgba(249,115,22,.18),transparent 60%)',pointerEvents:'none'}} />
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:20,position:'relative',zIndex:1}}>
@@ -110,13 +116,16 @@ export default function AppDashboard() {
           </div>
         </div>
       </div>
+      )}
 
       {/* KPI CARDS */}
       <div className="stats-grid" style={{marginBottom:24}}>
+        {!isFuncionario && (
         <div className="stat-card c-orange">
           <div className="stat-icon c-orange"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div><div className="stat-value" style={{fontSize:17}}>{fmt.currency(fat)}</div><div className="stat-label">Faturamento do mês</div></div>
         </div>
+        )}
         <div className="stat-card c-green">
           <div className="stat-icon c-green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
           <div><div className="stat-value">{stats.finalizadasHoje||0}</div><div className="stat-label">Finalizadas hoje</div></div>
@@ -132,11 +141,13 @@ export default function AppDashboard() {
       </div>
 
       {/* GRÁFICO + OS RECENTES */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
+      <div style={{display:'grid',gridTemplateColumns: isFuncionario ? '1fr' : '1fr 1fr',gap:20,marginBottom:20}}>
+        {!isFuncionario && (
         <div className="card">
           <div className="card-header"><div className="card-title">📈 Faturamento mensal</div></div>
           <BarChart data={faturamentoMensal} />
         </div>
+        )}
         <div className="card">
           <div className="card-header">
             <div className="card-title">🔧 OS recentes</div>
@@ -153,7 +164,7 @@ export default function AppDashboard() {
                 </div>
                 <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
                   <span className={`badge ${STATUS_CLASS[os.status]||'badge-gray'}`}>{STATUS_LABEL[os.status]||os.status}</span>
-                  <span style={{fontSize:12,fontWeight:700,color:'var(--gray-600)'}}>{fmt.currency(os.valor)}</span>
+                  {!isFuncionario && <span style={{fontSize:12,fontWeight:700,color:'var(--gray-600)'}}>{fmt.currency(os.valor)}</span>}
                 </div>
               </div>
             ))}

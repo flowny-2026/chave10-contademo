@@ -50,4 +50,18 @@ function oficinaSelf(req, res, next) {
   next();
 }
 
-module.exports = { authMiddleware, masterAdminOnly, oficinaSelf, SECRET };
+// Bloqueia funcionários de acessar dados financeiros
+function naoFuncionario(req, res, next) {
+  if (req.user?.perfil === 'funcionario') {
+    log.security('acesso_negado', {
+      motivo: 'funcionario tentou acessar área financeira',
+      perfil: req.user?.perfil,
+      path: req.path,
+      ip: req.ip,
+    });
+    return res.status(403).json({ error: 'Acesso restrito ao gerente da oficina' });
+  }
+  next();
+}
+
+module.exports = { authMiddleware, masterAdminOnly, oficinaSelf, naoFuncionario, SECRET };

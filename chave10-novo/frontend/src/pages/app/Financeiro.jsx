@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
+import { api } from '../../api';
 
 const fmt = {
   currency: v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'),
   date: iso => { if(!iso) return '-'; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; },
 };
-
 const CATEGORIAS = ['Aluguel','Energia','Água','Internet','Folha de pagamento','Peças/Estoque','Ferramentas','Boleto/Financiamento','Impostos','Marketing','Combustível','Manutenção','Outros'];
 const CAT_ICONS = {'Aluguel':'🏠','Energia':'⚡','Água':'💧','Internet':'🌐','Folha de pagamento':'👥','Peças/Estoque':'🔩','Ferramentas':'🔧','Boleto/Financiamento':'📄','Impostos':'🏛️','Marketing':'📣','Combustível':'⛽','Manutenção':'🛠️','Outros':'📦'};
 const EMPTY_DESP = { descricao:'', categoria:'Outros', valor:'', data:new Date().toISOString().split('T')[0], vencimento:'', pago:false, obs:'' };
@@ -13,8 +13,6 @@ function Toast({ msg, type }) {
   if (!msg) return null;
   return <div className={`toast show ${type}`} style={{position:'fixed',bottom:24,right:24,zIndex:300}}>{msg}</div>;
 }
-
-function getToken() { return localStorage.getItem('c10_token'); }
 
 export default function AppFinanceiro() {
   const hoje = new Date();
@@ -36,14 +34,14 @@ export default function AppFinanceiro() {
 
   async function loadOrdens() {
     try {
-      const data = await fetch('/api/app/os',{headers:{Authorization:'Bearer '+getToken()}}).then(r=>r.json());
+      const data = await api.app.os.list();
       setOrdens(Array.isArray(data)?data:[]);
     } catch { setOrdens([]); }
   }
 
   async function loadDespesas() {
     try {
-      const data = await fetch(`/api/app/despesas?inicio=${inicioMes}&fim=${fimMes}`,{headers:{Authorization:'Bearer '+getToken()}}).then(r=>r.json());
+      const data = await api.app.despesas.list(inicioMes, fimMes);
       setDespesas(Array.isArray(data)?data:[]);
     } catch { setDespesas([]); }
   }
@@ -55,21 +53,21 @@ export default function AppFinanceiro() {
     e.preventDefault();
     if (!form.descricao.trim()||!form.valor||parseFloat(form.valor)<=0) { showToast('Preencha descrição e valor','error'); return; }
     try {
-      const url = editing ? `/api/app/despesas/${editing}` : '/api/app/despesas';
-      const method = editing ? 'PUT' : 'POST';
-      await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({...form,valor:parseFloat(form.valor),pago:form.pago?1:0})});
+      const payload = {...form, valor:parseFloat(form.valor), pago:form.pago?1:0};
+      if (editing) await api.app.despesas.update(editing, payload);
+      else await api.app.despesas.create(payload);
       setModal(false); loadDespesas(); showToast(editing?'Despesa atualizada!':'Despesa cadastrada!');
     } catch { showToast('Erro ao salvar','error'); }
   }
 
   async function marcarPago(id) {
-    await fetch(`/api/app/despesas/${id}`,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({pago:1})});
+    await api.app.despesas.update(id, {pago:1});
     loadDespesas(); showToast('Marcado como pago!');
   }
 
   async function removeDespesa(id) {
     if (!window.confirm('Excluir esta despesa?')) return;
-    await fetch(`/api/app/despesas/${id}`,{method:'DELETE',headers:{Authorization:'Bearer '+getToken()}});
+    await api.app.despesas.remove(id);
     loadDespesas(); showToast('Despesa excluída');
   }
 

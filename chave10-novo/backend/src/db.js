@@ -175,6 +175,11 @@ async function initDB() {
     );
   `);
 
+  // Migration: adiciona pecas_itens em orcamentos se não existir
+  await pool.query(`
+    ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS pecas_itens TEXT;
+  `).catch(() => {});
+
   // Cria master_admin se não existir
   const admin = await queryOne("SELECT id FROM usuarios WHERE perfil = 'master_admin'");
   if (!admin) {

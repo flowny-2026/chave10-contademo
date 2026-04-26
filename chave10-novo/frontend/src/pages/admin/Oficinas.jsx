@@ -10,7 +10,7 @@ const STATUS_LABEL = { active:'Ativa', pending:'Pendente', overdue:'Em atraso', 
 const STATUS_CLASS = { active:'badge-green', pending:'badge-yellow', overdue:'badge-orange', blocked:'badge-red' };
 
 const EMPTY     = { nome:'', responsavel:'', telefone:'', email:'', plano:'mensal', data_vencimento:'', observacoes:'' };
-const EMPTY_USR = { nome:'', email:'', senha:'', perfil:'admin_oficina' };
+const EMPTY_USR = { nome:'', email:'', senha:'', perfil:'funcionario' };
 const EMPTY_PAG = { valor:'', data_pagamento:new Date().toISOString().split('T')[0], novo_vencimento:'', forma_pagamento:'pix', observacao:'' };
 
 function Toast({ msg, type }) {
@@ -374,11 +374,16 @@ export default function AdminOficinas() {
                   <div className="form-group"><label>Email *</label><input type="email" value={userForm.email} onChange={e=>setUserForm(f=>({...f,email:e.target.value}))} required /></div>
                   <div className="form-group"><label>Senha *</label><input type="password" value={userForm.senha} onChange={e=>setUserForm(f=>({...f,senha:e.target.value}))} required /></div>
                   <div className="form-group">
-                    <label>Perfil</label>
+                    <label>Perfil *</label>
                     <select value={userForm.perfil} onChange={e=>setUserForm(f=>({...f,perfil:e.target.value}))}>
-                      <option value="admin_oficina">Admin Oficina</option>
-                      <option value="funcionario">Funcionário</option>
+                      <option value="funcionario">👷 Funcionário — sem acesso financeiro</option>
+                      <option value="admin_oficina">👔 Gerente — acesso completo</option>
                     </select>
+                    <small style={{fontSize:11,color:'var(--gray-400)',marginTop:4,display:'block'}}>
+                      {userForm.perfil==='funcionario'
+                        ? 'Pode criar OS e clientes, mas não vê valores financeiros.'
+                        : 'Acesso total: financeiro, relatórios e configurações.'}
+                    </small>
                   </div>
                 </div>
                 <div className="form-actions">

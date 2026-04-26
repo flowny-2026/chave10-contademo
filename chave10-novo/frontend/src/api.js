@@ -27,6 +27,7 @@ const del  = (url)        => req('DELETE', url);
 export const api = {
   auth: {
     login: (email, senha) => post('/auth/login', { email, senha }),
+    googleLogin: (credential) => post('/auth/google', { credential }),
   },
   admin: {
     dashboard: ()                    => get('/admin/dashboard'),
@@ -76,6 +77,29 @@ export const api = {
       update:  (id, data)            => put('/app/orcamentos/'+id, data),
       setStatus:(id, status)         => patch('/app/orcamentos/'+id+'/status', { status }),
       remove:  (id)                  => del('/app/orcamentos/'+id),
+    },
+    agenda: {
+      list:    (data)                => get('/app/agenda' + (data ? '?data='+data : '')),
+      create:  (data)                => post('/app/agenda', data),
+      remove:  (id)                  => del('/app/agenda/'+id),
+    },
+    lembretes: {
+      list:    ()                    => get('/app/lembretes'),
+      create:  (data)                => post('/app/lembretes', data),
+      update:  (id, data)            => put('/app/lembretes/'+id, data),
+      remove:  (id)                  => del('/app/lembretes/'+id),
+    },
+    estoque: {
+      list:    (categoria)           => get('/app/estoque' + (categoria ? '?categoria='+categoria : '')),
+      create:  (data)                => post('/app/estoque', data),
+      update:  (id, data)            => put('/app/estoque/'+id, data),
+      remove:  (id)                  => del('/app/estoque/'+id),
+    },
+    despesas: {
+      list:    (inicio, fim)         => get('/app/despesas' + (inicio||fim ? '?'+(inicio?'inicio='+inicio:'')+(inicio&&fim?'&':'')+(fim?'fim='+fim:'') : '')),
+      create:  (data)                => post('/app/despesas', data),
+      update:  (id, data)            => put('/app/despesas/'+id, data),
+      remove:  (id)                  => del('/app/despesas/'+id),
     },
   },
 };

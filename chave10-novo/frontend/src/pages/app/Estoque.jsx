@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from '../../api';
 import BarcodeScanner from '../../components/BarcodeScanner';
 
 const fmt = { currency: v => 'R$ ' + parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.') };
@@ -9,13 +10,14 @@ function Toast({ msg, type }) {
   return <div className={`toast show ${type}`} style={{position:'fixed',bottom:24,right:24,zIndex:300}}>{msg}</div>;
 }
 
-function getToken() { return localStorage.getItem('c10_token'); }
+function getUser() { try { return JSON.parse(localStorage.getItem('c10_user')); } catch { return null; } }
 
 export default function AppEstoque() {
+  const isFuncionario = getUser()?.perfil === 'funcionario';
   const [itens, setItens]     = useState([]);
   const [catFiltro, setCatFiltro] = useState('todos');
   const [search, setSearch]   = useState('');
-  const [view, setView]       = useState('patrimonio'); // 'patrimonio' | 'lista'
+  const [view, setView]       = useState(isFuncionario ? 'lista' : 'patrimonio'); // 'patrimonio' | 'lista'
   const [modal, setModal]     = useState(false);
   const [form, setForm]       = useState(EMPTY);
   const [editing, setEditing] = useState(null);
@@ -26,7 +28,7 @@ export default function AppEstoque() {
 
   async function load() {
     try {
-      const data = await fetch('/api/app/estoque',{headers:{Authorization:'Bearer '+getToken()}}).then(r=>r.json());
+      const data = await api.app.estoque.list();
       setItens(Array.isArray(data)?data:[]);
     } catch { setItens([]); }
   }
@@ -55,16 +57,16 @@ export default function AppEstoque() {
     e.preventDefault();
     if (!form.nome.trim()) { showToast('Nome é obrigatório','error'); return; }
     try {
-      const url = editing ? `/api/app/estoque/${editing}` : '/api/app/estoque';
-      const method = editing ? 'PUT' : 'POST';
-      await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+getToken()},body:JSON.stringify({...form,quantidade:parseInt(form.quantidade)||0,estoque_min:parseInt(form.estoque_min)||0,preco:parseFloat(form.preco)||0,codigo_barras:form.codigo_barras||null})});
+      const payload = {...form, quantidade:parseInt(form.quantidade)||0, estoque_min:parseInt(form.estoque_min)||0, preco:parseFloat(form.preco)||0, codigo_barras:form.codigo_barras||null};
+      if (editing) await api.app.estoque.update(editing, payload);
+      else await api.app.estoque.create(payload);
       setModal(false); load(); showToast(editing?'Item atualizado!':'Item salvo!');
     } catch { showToast('Erro ao salvar','error'); }
   }
 
   async function remove(id) {
     if (!window.confirm('Excluir este item?')) return;
-    await fetch(`/api/app/estoque/${id}`,{method:'DELETE',headers:{Authorization:'Bearer '+getToken()}});
+    await api.app.estoque.remove(id);
     load(); showToast('Item excluído');
   }
 
@@ -89,7 +91,7 @@ export default function AppEstoque() {
       <div className="page-header">
         <div><div className="page-title">Estoque & Patrimônio</div><div className="page-subtitle">{itens.length} item(ns) cadastrado(s)</div></div>
         <div style={{display:'flex',gap:8}}>
-          <button className={`btn ${view==='patrimonio'?'btn-primary':'btn-outline'} btn-sm`} onClick={()=>setView('patrimonio')}>📊 Patrimônio</button>
+          {!isFuncionario && <button className={`btn ${view==='patrimonio'?'btn-primary':'btn-outline'} btn-sm`} onClick={()=>setView('patrimonio')}>📊 Patrimônio</button>}
           <button className={`btn ${view==='lista'?'btn-primary':'btn-outline'} btn-sm`} onClick={()=>setView('lista')}>📋 Lista</button>
           <button className="btn btn-outline" onClick={()=>setScanner(true)} title="Ler código de barras">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/></svg>
@@ -107,7 +109,7 @@ export default function AppEstoque() {
         </div>
       )}
 
-      {view==='patrimonio' && (
+      {view==='patrimonio' && !isFuncionario && (
         <>
           {/* KPI */}
           <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',marginBottom:24}}>
@@ -213,7 +215,7 @@ export default function AppEstoque() {
             {listaFiltrada.length ? (
               <div className="table-wrapper">
                 <table>
-                  <thead><tr><th>Nome</th><th>Categoria</th><th>Tipo</th><th>Marca</th><th>Qtd</th><th>Preço unit.</th><th>Ações</th></tr></thead>
+                  <thead><tr><th>Nome</th><th>Categoria</th><th>Tipo</th><th>Marca</th><th>Qtd</th>{!isFuncionario&&<th>Preço unit.</th>}<th>Ações</th></tr></thead>
                   <tbody>
                     {listaFiltrada.map(i=>{
                       const baixoItem = i.categoria==='peca'&&parseInt(i.quantidade||0)<=parseInt(i.estoque_min||0)&&parseInt(i.estoque_min||0)>0;
@@ -225,7 +227,7 @@ export default function AppEstoque() {
                           <td>{i.tipo||'—'}</td>
                           <td>{i.marca||'—'}</td>
                           <td>{i.categoria==='peca'?<span className={`badge ${zeradoItem?'badge-red':baixoItem?'badge-yellow':'badge-green'}`}>{i.quantidade||0}</span>:'—'}</td>
-                          <td>{i.preco?fmt.currency(i.preco):'—'}</td>
+                          {!isFuncionario&&<td>{i.preco?fmt.currency(i.preco):'—'}</td>}
                           <td>
                             <div style={{display:'flex',gap:4}}>
                               <button className="btn btn-outline btn-sm" onClick={()=>openEdit(i)}>✏️</button>
@@ -282,7 +284,7 @@ export default function AppEstoque() {
                     <div className="form-group"><label>Quantidade em estoque</label><input type="number" min="0" value={form.quantidade} onChange={e=>setForm(f=>({...f,quantidade:e.target.value}))} placeholder="0" /></div>
                     <div className="form-group"><label>Estoque mínimo</label><input type="number" min="0" value={form.estoque_min} onChange={e=>setForm(f=>({...f,estoque_min:e.target.value}))} placeholder="Ex: 2" /></div>
                   </>}
-                  <div className="form-group"><label>{form.categoria==='peca'?'Preço unitário (R$)':'Valor (R$)'}</label><input type="number" step="0.01" min="0" value={form.preco} onChange={e=>setForm(f=>({...f,preco:e.target.value}))} placeholder="0,00" /></div>
+                  {!isFuncionario && <div className="form-group"><label>{form.categoria==='peca'?'Preço unitário (R$)':'Valor (R$)'}</label><input type="number" step="0.01" min="0" value={form.preco} onChange={e=>setForm(f=>({...f,preco:e.target.value}))} placeholder="0,00" /></div>}
                   <div className="form-group"><label>Data de compra</label><input type="date" value={form.data_compra} onChange={e=>setForm(f=>({...f,data_compra:e.target.value}))} /></div>
                   <div className="form-group full"><label>Observações</label><textarea value={form.obs} onChange={e=>setForm(f=>({...f,obs:e.target.value}))} placeholder="Anotações adicionais..." /></div>
                 </div>

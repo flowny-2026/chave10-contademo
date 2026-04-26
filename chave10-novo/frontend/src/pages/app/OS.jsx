@@ -122,6 +122,7 @@ function gerarHTMLOS(os, clientes, veiculos, oficina) {
 }
 
 export default function AppOS() {
+  const isFuncionario = (() => { try { return JSON.parse(localStorage.getItem('c10_user'))?.perfil === 'funcionario'; } catch { return false; } })();
   const [osList, setOsList]     = useState([]);
   const [clientes, setClientes] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
@@ -241,7 +242,7 @@ export default function AppOS() {
         {listaFiltrada.length ? (
           <div className="table-wrapper">
             <table>
-              <thead><tr><th>OS</th><th>Data</th><th>Cliente</th><th>Veículo</th><th>Problema</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead><tr><th>OS</th><th>Data</th><th>Cliente</th><th>Veículo</th><th>Problema</th>{!isFuncionario&&<th>Total</th>}<th>Status</th><th>Ações</th></tr></thead>
               <tbody>
                 {listaFiltrada.map(os => {
                   const total = parseFloat(os.valor_mo||0)+parseFloat(os.valor_pecas||0)||parseFloat(os.valor||0);
@@ -252,7 +253,7 @@ export default function AppOS() {
                       <td>{os.cliente_nome||'—'}</td>
                       <td><div>{os.veiculo_modelo||'—'}</div>{os.placa&&<small style={{color:'var(--gray-400)'}}>{os.placa}</small>}</td>
                       <td style={{maxWidth:180,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{os.descricao}</td>
-                      <td><strong>{fmt.currency(total)}</strong></td>
+                      {!isFuncionario&&<td><strong>{fmt.currency(total)}</strong></td>}
                       <td><span className={`badge ${STATUS_CLASS[os.status]||'badge-gray'}`}>{STATUS_LABEL[os.status]||os.status}</span></td>
                       <td>
                         <div style={{display:'flex',gap:4}}>
@@ -304,6 +305,7 @@ export default function AppOS() {
                 </div>
 
                 {/* Peças detalhadas */}
+                {!isFuncionario && (
                 <div style={{marginTop:16,marginBottom:16}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                     <label style={{fontWeight:700,fontSize:13,color:'var(--gray-700)'}}>🔩 Peças utilizadas</label>
@@ -326,13 +328,16 @@ export default function AppOS() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 <div className="form-grid">
-                  <div className="form-group"><label>Mão de obra (R$)</label><input type="number" step="0.01" min="0" value={form.valor_mo} onChange={e=>setForm(f=>({...f,valor_mo:e.target.value}))} placeholder="0,00" /></div>
+                  {!isFuncionario && <div className="form-group"><label>Mão de obra (R$)</label><input type="number" step="0.01" min="0" value={form.valor_mo} onChange={e=>setForm(f=>({...f,valor_mo:e.target.value}))} placeholder="0,00" /></div>}
+                  {!isFuncionario && (
                   <div className="form-group">
                     <label>Total geral</label>
                     <div style={{padding:'10px 13px',background:'var(--brand-light)',borderRadius:'var(--r-sm)',fontFamily:'Poppins,sans-serif',fontSize:16,fontWeight:800,color:'var(--brand)'}}>{fmt.currency(totalForm)}</div>
                   </div>
+                  )}
                   <div className="form-group"><label>Data</label><input type="date" value={form.data} onChange={e=>setForm(f=>({...f,data:e.target.value}))} /></div>
                   <div className="form-group">
                     <label>Status</label>
@@ -384,14 +389,13 @@ export default function AppOS() {
                   <div style={{fontSize:11,fontWeight:700,color:'var(--gray-400)',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:6}}>Peças utilizadas</div>
                   {pecas.filter(p=>p.nome).length ? (
                     <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-                      <thead><tr style={{background:'var(--gray-50)'}}><th style={{padding:'7px 10px',textAlign:'left',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Descrição</th><th style={{padding:'7px 10px',textAlign:'center',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Qtd</th><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Unit.</th><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Subtotal</th></tr></thead>
+                      <thead><tr style={{background:'var(--gray-50)'}}><th style={{padding:'7px 10px',textAlign:'left',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Descrição</th><th style={{padding:'7px 10px',textAlign:'center',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Qtd</th>{!isFuncionario&&<><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Unit.</th><th style={{padding:'7px 10px',textAlign:'right',fontSize:11,color:'var(--gray-400)',fontWeight:700}}>Subtotal</th></>}</tr></thead>
                       <tbody>
                         {pecas.filter(p=>p.nome).map((p,i)=>(
                           <tr key={i} style={{borderBottom:'1px solid var(--gray-100)'}}>
                             <td style={{padding:'7px 10px'}}>{p.nome}</td>
                             <td style={{padding:'7px 10px',textAlign:'center'}}>{p.qtd||1}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right'}}>{fmt.currency(p.valor_unit)}</td>
-                            <td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{fmt.currency((parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1))}</td>
+                            {!isFuncionario&&<><td style={{padding:'7px 10px',textAlign:'right'}}>{fmt.currency(p.valor_unit)}</td><td style={{padding:'7px 10px',textAlign:'right',fontWeight:600}}>{fmt.currency((parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1))}</td></>}
                           </tr>
                         ))}
                       </tbody>
@@ -399,6 +403,8 @@ export default function AppOS() {
                   ) : <p style={{fontSize:13,color:'var(--gray-400)'}}>Nenhuma peça registrada</p>}
                 </div>
 
+                {!isFuncionario && (
+                <>
                 <div style={{display:'flex',gap:12,marginBottom:12}}>
                   {[{l:'Mão de obra',v:viewing.valor_mo},{l:'Total peças',v:totalPecas}].map(item=>(
                     <div key={item.l} style={{flex:1,background:'var(--gray-50)',padding:12,borderRadius:'var(--r-sm)',textAlign:'center'}}>
@@ -411,6 +417,8 @@ export default function AppOS() {
                   <span style={{fontWeight:700,color:'var(--brand)'}}>Total</span>
                   <span style={{fontFamily:'Poppins,sans-serif',fontSize:20,fontWeight:800,color:'var(--brand)'}}>{fmt.currency(total)}</span>
                 </div>
+                </>
+                )}
                 <div className="form-actions">
                   <button className="btn btn-outline" onClick={()=>setModal(null)}>Fechar</button>
                   <button className="btn btn-outline" onClick={()=>imprimir(viewing)}>🖨️ Imprimir</button>

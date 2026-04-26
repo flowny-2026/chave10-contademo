@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, queryOne, run } = require('../db');
-const { authMiddleware, oficinaSelf } = require('../middleware/auth');
+const { authMiddleware, oficinaSelf, naoFuncionario } = require('../middleware/auth');
 const { validateCliente, validateVeiculo, validateOS } = require('../middleware/validate');
 const log = require('../utils/logger');
 
@@ -11,22 +11,29 @@ const oid = req => req.user.oficina_id;
 router.get('/dashboard', async (req,res) => {
   try {
     const id=oid(req), hoje=new Date().toISOString().split('T')[0], mesInicio=hoje.substring(0,7)+'-01';
+    const isFuncionario = req.user?.perfil === 'funcionario';
     const [emAnd,finHoje,fatMes,totCli] = await Promise.all([
       queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1 AND status='em_andamento'",[id]),
       queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data=$2",[id,hoje]),
-      queryOne("SELECT COALESCE(SUM(valor),0) n FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2",[id,mesInicio]),
+      isFuncionario ? Promise.resolve({n:0}) : queryOne("SELECT COALESCE(SUM(valor),0) n FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2",[id,mesInicio]),
       queryOne("SELECT COUNT(*) n FROM clientes WHERE oficina_id=$1",[id]),
     ]);
-    const stats={emAndamento:+emAnd.n,finalizadasHoje:+finHoje.n,faturamentoMes:+fatMes.n,totalClientes:+totCli.n};
+    const stats={emAndamento:+emAnd.n,finalizadasHoje:+finHoje.n,faturamentoMes:isFuncionario?null:+fatMes.n,totalClientes:+totCli.n};
     const recentes=await query("SELECT os.*,c.nome as cliente_nome,v.modelo as veiculo_modelo,v.placa FROM ordens_servico os LEFT JOIN clientes c ON c.id=os.cliente_id LEFT JOIN veiculos v ON v.id=os.veiculo_id WHERE os.oficina_id=$1 ORDER BY os.id DESC LIMIT 5",[id]);
-    const faturamentoMensal=[];
-    for(let i=5;i>=0;i--){
-      const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);
-      const ano=d.getFullYear(),mes=String(d.getMonth()+1).padStart(2,'0');
-      const r=await queryOne("SELECT COALESCE(SUM(valor),0) total FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2 AND data<=$3",[id,`${ano}-${mes}-01`,`${ano}-${mes}-31`]);
-      faturamentoMensal.push({mes:`${mes}/${String(ano).slice(2)}`,total:+r.total});
+    // Omite valor das OS recentes para funcionários
+    const recentesFiltradas = isFuncionario
+      ? recentes.map(({valor, valor_mo, valor_pecas, ...rest}) => rest)
+      : recentes;
+    let faturamentoMensal = [];
+    if (!isFuncionario) {
+      for(let i=5;i>=0;i--){
+        const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);
+        const ano=d.getFullYear(),mes=String(d.getMonth()+1).padStart(2,'0');
+        const r=await queryOne("SELECT COALESCE(SUM(valor),0) total FROM ordens_servico WHERE oficina_id=$1 AND status='finalizado' AND data>=$2 AND data<=$3",[id,`${ano}-${mes}-01`,`${ano}-${mes}-31`]);
+        faturamentoMensal.push({mes:`${mes}/${String(ano).slice(2)}`,total:+r.total});
+      }
     }
-    res.json({stats,recentes,faturamentoMensal});
+    res.json({stats,recentes:recentesFiltradas,faturamentoMensal});
   } catch(err){log.error('app_dashboard',err);res.status(500).json({error:'Erro interno'});}
 });
 
@@ -100,12 +107,21 @@ router.delete('/veiculos/:id', async (req,res) => {
 router.get('/os', async (req,res) => {
   try {
     const {status}=req.query;
+    const isFuncionario = req.user?.perfil === 'funcionario';
     if(status&&!['em_andamento','finalizado'].includes(status)) return res.status(400).json({error:'Status inválido'});
     let q="SELECT os.*,c.nome as cliente_nome,c.telefone as cliente_telefone,c.endereco as cliente_endereco,v.modelo as veiculo_modelo,v.placa,v.marca as veiculo_marca,v.ano as veiculo_ano,v.km as veiculo_km FROM ordens_servico os LEFT JOIN clientes c ON c.id=os.cliente_id LEFT JOIN veiculos v ON v.id=os.veiculo_id WHERE os.oficina_id=$1";
     const p=[oid(req)];
     if(status){q+=' AND os.status=$2';p.push(status);}
     q+=' ORDER BY os.id DESC';
-    const rows=(await query(q,p)).map(r=>({...r,pecas_itens:r.pecas_itens?JSON.parse(r.pecas_itens):[]}));
+    const rows=(await query(q,p)).map(r=>{
+      const base = {...r,pecas_itens:r.pecas_itens?JSON.parse(r.pecas_itens):[]};
+      // Omite valores financeiros para funcionários
+      if(isFuncionario) {
+        const {valor, valor_mo, valor_pecas, ...rest} = base;
+        return rest;
+      }
+      return base;
+    });
     res.json(rows);
   } catch(err){log.error('app_get_os',err);res.status(500).json({error:'Erro interno'});}
 });
@@ -113,11 +129,15 @@ router.get('/os', async (req,res) => {
 router.post('/os', validateOS, async (req,res) => {
   try {
     const {cliente_id,veiculo_id,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,observacao,data}=req.body;
-    const valor=(parseFloat(valor_mo)||0)+(parseFloat(valor_pecas)||0);
+    const isFuncionario = req.user?.perfil === 'funcionario';
+    // Funcionários não podem definir valores financeiros
+    const valorMO = isFuncionario ? 0 : (parseFloat(valor_mo)||0);
+    const valorPecas = isFuncionario ? 0 : (parseFloat(valor_pecas)||0);
+    const valor = valorMO + valorPecas;
     const id=oid(req);
     const cnt=await queryOne("SELECT COUNT(*) n FROM ordens_servico WHERE oficina_id=$1",[id]);
     const numero=String(+cnt.n+1).padStart(4,'0');
-    const r=await queryOne("INSERT INTO ordens_servico(oficina_id,cliente_id,veiculo_id,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,valor,observacao,data,numero) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id",[id,cliente_id||null,veiculo_id||null,descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||0,valor_pecas||0,valor,observacao||null,data||new Date().toISOString().split('T')[0],numero]);
+    const r=await queryOne("INSERT INTO ordens_servico(oficina_id,cliente_id,veiculo_id,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,valor,observacao,data,numero) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id",[id,cliente_id||null,veiculo_id||null,descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valorMO,valorPecas,valor,observacao||null,data||new Date().toISOString().split('T')[0],numero]);
     res.status(201).json({id:r.id,numero});
   } catch(err){log.error('app_post_os',err);res.status(500).json({error:'Erro interno'});}
 });
@@ -125,9 +145,13 @@ router.post('/os', validateOS, async (req,res) => {
 router.put('/os/:id', async (req,res) => {
   try {
     const {descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,status,observacao,cliente_id,veiculo_id,data}=req.body;
+    const isFuncionario = req.user?.perfil === 'funcionario';
     if(status&&!['em_andamento','finalizado'].includes(status)) return res.status(400).json({error:'Status inválido'});
-    const valor=(parseFloat(valor_mo)||0)+(parseFloat(valor_pecas)||0);
-    await run("UPDATE ordens_servico SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),pecas_itens=COALESCE($4,pecas_itens),valor_mo=COALESCE($5,valor_mo),valor_pecas=COALESCE($6,valor_pecas),valor=$7,status=COALESCE($8,status),observacao=COALESCE($9,observacao),cliente_id=COALESCE($10,cliente_id),veiculo_id=COALESCE($11,veiculo_id),data=COALESCE($12,data) WHERE id=$13 AND oficina_id=$14",[descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valor_mo||null,valor_pecas||null,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req)]);
+    // Funcionários não podem alterar valores financeiros
+    const valorMO = isFuncionario ? null : (valor_mo !== undefined ? parseFloat(valor_mo)||0 : null);
+    const valorPecas = isFuncionario ? null : (valor_pecas !== undefined ? parseFloat(valor_pecas)||0 : null);
+    const valor = (valorMO !== null && valorPecas !== null) ? valorMO + valorPecas : null;
+    await run("UPDATE ordens_servico SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),pecas_itens=COALESCE($4,pecas_itens),valor_mo=COALESCE($5,valor_mo),valor_pecas=COALESCE($6,valor_pecas),valor=COALESCE($7,valor),status=COALESCE($8,status),observacao=COALESCE($9,observacao),cliente_id=COALESCE($10,cliente_id),veiculo_id=COALESCE($11,veiculo_id),data=COALESCE($12,data) WHERE id=$13 AND oficina_id=$14",[descricao,servicos||null,pecas||null,pecas_itens?JSON.stringify(pecas_itens):null,valorMO,valorPecas,valor,status||null,observacao||null,cliente_id||null,veiculo_id||null,data||null,req.params.id,oid(req)]);
     res.json({ok:true});
   } catch(err){log.error('app_put_os',err);res.status(500).json({error:'Erro interno'});}
 });
@@ -178,18 +202,29 @@ router.delete('/lembretes/:id', async (req,res) => {
 router.get('/estoque', async (req,res) => {
   try {
     const {categoria}=req.query;
+    const isFuncionario = req.user?.perfil === 'funcionario';
     let q='SELECT * FROM estoque WHERE oficina_id=$1';const p=[oid(req)];
     if(categoria){q+=' AND categoria=$2';p.push(categoria);}
     q+=' ORDER BY nome';
-    res.json(await query(q,p));
+    const rows = await query(q,p);
+    // Omite preços para funcionários
+    if(isFuncionario) {
+      res.json(rows.map(({preco, data_compra, ...rest}) => rest));
+    } else {
+      res.json(rows);
+    }
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
 router.post('/estoque', async (req,res) => {
   try {
     const {nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras}=req.body;
+    const isFuncionario = req.user?.perfil === 'funcionario';
     if(!nome) return res.status(400).json({error:'Nome obrigatório'});
-    const r=await queryOne("INSERT INTO estoque(oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id",[oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,preco||0,data_compra||null,obs||null,codigo_barras||null]);
+    // Funcionários não podem definir preços
+    const precoFinal = isFuncionario ? 0 : (preco||0);
+    const dataCompraFinal = isFuncionario ? null : (data_compra||null);
+    const r=await queryOne("INSERT INTO estoque(oficina_id,nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id",[oid(req),nome,categoria||'peca',tipo||null,marca||null,aplicacao||null,quantidade||0,estoque_min||0,precoFinal,dataCompraFinal,obs||null,codigo_barras||null]);
     res.status(201).json({id:r.id});
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
@@ -197,7 +232,11 @@ router.post('/estoque', async (req,res) => {
 router.put('/estoque/:id', async (req,res) => {
   try {
     const {nome,categoria,tipo,marca,aplicacao,quantidade,estoque_min,preco,data_compra,obs,codigo_barras}=req.body;
-    await run("UPDATE estoque SET nome=COALESCE($1,nome),categoria=COALESCE($2,categoria),tipo=COALESCE($3,tipo),marca=COALESCE($4,marca),aplicacao=COALESCE($5,aplicacao),quantidade=COALESCE($6,quantidade),estoque_min=COALESCE($7,estoque_min),preco=COALESCE($8,preco),data_compra=COALESCE($9,data_compra),obs=COALESCE($10,obs),codigo_barras=COALESCE($11,codigo_barras) WHERE id=$12 AND oficina_id=$13",[nome,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,preco!=null?preco:null,data_compra||null,obs||null,codigo_barras||null,req.params.id,oid(req)]);
+    const isFuncionario = req.user?.perfil === 'funcionario';
+    // Funcionários não podem alterar preços
+    const precoFinal = isFuncionario ? null : (preco!=null?preco:null);
+    const dataCompraFinal = isFuncionario ? null : (data_compra||null);
+    await run("UPDATE estoque SET nome=COALESCE($1,nome),categoria=COALESCE($2,categoria),tipo=COALESCE($3,tipo),marca=COALESCE($4,marca),aplicacao=COALESCE($5,aplicacao),quantidade=COALESCE($6,quantidade),estoque_min=COALESCE($7,estoque_min),preco=COALESCE($8,preco),data_compra=COALESCE($9,data_compra),obs=COALESCE($10,obs),codigo_barras=COALESCE($11,codigo_barras) WHERE id=$12 AND oficina_id=$13",[nome,categoria||null,tipo||null,marca||null,aplicacao||null,quantidade!=null?quantidade:null,estoque_min!=null?estoque_min:null,precoFinal,dataCompraFinal,obs||null,codigo_barras||null,req.params.id,oid(req)]);
     res.json({ok:true});
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
@@ -207,8 +246,8 @@ router.delete('/estoque/:id', async (req,res) => {
   catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-// DESPESAS
-router.get('/despesas', async (req,res) => {
+// DESPESAS (restrito a admin_oficina)
+router.get('/despesas', naoFuncionario, async (req,res) => {
   try {
     const {inicio,fim}=req.query;
     let q='SELECT * FROM despesas WHERE oficina_id=$1';const p=[oid(req)];
@@ -219,7 +258,7 @@ router.get('/despesas', async (req,res) => {
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.post('/despesas', async (req,res) => {
+router.post('/despesas', naoFuncionario, async (req,res) => {
   try {
     const {descricao,categoria,valor,data,vencimento,pago,obs}=req.body;
     const r=await queryOne("INSERT INTO despesas(oficina_id,descricao,categoria,valor,data,vencimento,pago,obs) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",[oid(req),descricao,categoria||'Outros',valor,data,vencimento||null,pago?1:0,obs||null]);
@@ -227,7 +266,7 @@ router.post('/despesas', async (req,res) => {
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.put('/despesas/:id', async (req,res) => {
+router.put('/despesas/:id', naoFuncionario, async (req,res) => {
   try {
     const {descricao,categoria,valor,data,vencimento,pago,obs}=req.body;
     await run("UPDATE despesas SET descricao=COALESCE($1,descricao),categoria=COALESCE($2,categoria),valor=COALESCE($3,valor),data=COALESCE($4,data),vencimento=COALESCE($5,vencimento),pago=COALESCE($6,pago),obs=COALESCE($7,obs) WHERE id=$8 AND oficina_id=$9",[descricao||null,categoria||null,valor||null,data||null,vencimento||null,pago!=null?pago:null,obs||null,req.params.id,oid(req)]);
@@ -235,7 +274,7 @@ router.put('/despesas/:id', async (req,res) => {
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
-router.delete('/despesas/:id', async (req,res) => {
+router.delete('/despesas/:id', naoFuncionario, async (req,res) => {
   try { await run('DELETE FROM despesas WHERE id=$1 AND oficina_id=$2',[req.params.id,oid(req)]); res.json({ok:true}); }
   catch(err){res.status(500).json({error:'Erro interno'});}
 });
@@ -243,24 +282,49 @@ router.delete('/despesas/:id', async (req,res) => {
 // ORÇAMENTOS
 router.get('/orcamentos', async (req,res) => {
   try {
-    res.json(await query("SELECT o.*,c.nome as cliente_nome,v.modelo as veiculo_modelo,v.placa FROM orcamentos o LEFT JOIN clientes c ON c.id=o.cliente_id LEFT JOIN veiculos v ON v.id=o.veiculo_id WHERE o.oficina_id=$1 ORDER BY o.id DESC",[oid(req)]));
+    const isFuncionario = req.user?.perfil === 'funcionario';
+    const rows = await query("SELECT o.*,c.nome as cliente_nome,v.modelo as veiculo_modelo,v.placa FROM orcamentos o LEFT JOIN clientes c ON c.id=o.cliente_id LEFT JOIN veiculos v ON v.id=o.veiculo_id WHERE o.oficina_id=$1 ORDER BY o.id DESC",[oid(req)]);
+    const parsed = rows.map(r=>({...r, pecas_itens: r.pecas_itens ? JSON.parse(r.pecas_itens) : []}));
+    if(isFuncionario) {
+      res.json(parsed.map(({valor_mo, valor_pecas, desconto, ...rest}) => rest));
+    } else {
+      res.json(parsed);
+    }
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
 router.post('/orcamentos', async (req,res) => {
   try {
-    const {cliente_id,veiculo_id,descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs}=req.body;
+    const {cliente_id,veiculo_id,descricao,servicos,pecas_itens,valor_mo,desconto,status,validade,obs}=req.body;
+    const isFuncionario = req.user?.perfil === 'funcionario';
+    const valorMO = isFuncionario ? 0 : (parseFloat(valor_mo)||0);
+    const itens = Array.isArray(pecas_itens) ? pecas_itens.filter(p=>p.nome?.trim()) : [];
+    const valorPecas = isFuncionario ? 0 : itens.reduce((s,p)=>(s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1)),0);
+    const descontoFinal = isFuncionario ? 0 : (parseFloat(desconto)||0);
+    const pecasTexto = itens.map(p=>`${p.qtd||1}x ${p.nome} (R$ ${parseFloat(p.valor_unit||0).toFixed(2)})`).join('\n');
     const cnt=await queryOne("SELECT COUNT(*) n FROM orcamentos WHERE oficina_id=$1",[oid(req)]);
     const numero='ORC-'+String(+cnt.n+1).padStart(4,'0');
-    const r=await queryOne("INSERT INTO orcamentos(oficina_id,cliente_id,veiculo_id,numero,descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id",[oid(req),cliente_id||null,veiculo_id||null,numero,descricao||null,servicos||null,pecas||null,valor_mo||0,valor_pecas||0,desconto||0,status||'pendente',validade||null,obs||null]);
+    const r=await queryOne(
+      "INSERT INTO orcamentos(oficina_id,cliente_id,veiculo_id,numero,descricao,servicos,pecas,pecas_itens,valor_mo,valor_pecas,desconto,status,validade,obs) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id",
+      [oid(req),cliente_id||null,veiculo_id||null,numero,descricao||null,servicos||null,pecasTexto||null,itens.length?JSON.stringify(itens):null,valorMO,valorPecas,descontoFinal,status||'pendente',validade||null,obs||null]
+    );
     res.status(201).json({id:r.id,numero});
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });
 
 router.put('/orcamentos/:id', async (req,res) => {
   try {
-    const {descricao,servicos,pecas,valor_mo,valor_pecas,desconto,status,validade,obs,cliente_id,veiculo_id}=req.body;
-    await run("UPDATE orcamentos SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),valor_mo=COALESCE($4,valor_mo),valor_pecas=COALESCE($5,valor_pecas),desconto=COALESCE($6,desconto),status=COALESCE($7,status),validade=COALESCE($8,validade),obs=COALESCE($9,obs),cliente_id=COALESCE($10,cliente_id),veiculo_id=COALESCE($11,veiculo_id) WHERE id=$12 AND oficina_id=$13",[descricao||null,servicos||null,pecas||null,valor_mo||null,valor_pecas||null,desconto||null,status||null,validade||null,obs||null,cliente_id||null,veiculo_id||null,req.params.id,oid(req)]);
+    const {descricao,servicos,pecas_itens,valor_mo,desconto,status,validade,obs,cliente_id,veiculo_id}=req.body;
+    const isFuncionario = req.user?.perfil === 'funcionario';
+    const valorMO = isFuncionario ? null : (valor_mo!==undefined ? parseFloat(valor_mo)||0 : null);
+    const itens = Array.isArray(pecas_itens) ? pecas_itens.filter(p=>p.nome?.trim()) : null;
+    const valorPecas = (itens && !isFuncionario) ? itens.reduce((s,p)=>(s+(parseFloat(p.valor_unit)||0)*(parseFloat(p.qtd)||1)),0) : null;
+    const descontoFinal = isFuncionario ? null : (desconto!==undefined ? parseFloat(desconto)||0 : null);
+    const pecasTexto = itens ? itens.map(p=>`${p.qtd||1}x ${p.nome} (R$ ${parseFloat(p.valor_unit||0).toFixed(2)})`).join('\n') : null;
+    await run(
+      "UPDATE orcamentos SET descricao=COALESCE($1,descricao),servicos=COALESCE($2,servicos),pecas=COALESCE($3,pecas),pecas_itens=COALESCE($4,pecas_itens),valor_mo=COALESCE($5,valor_mo),valor_pecas=COALESCE($6,valor_pecas),desconto=COALESCE($7,desconto),status=COALESCE($8,status),validade=COALESCE($9,validade),obs=COALESCE($10,obs),cliente_id=COALESCE($11,cliente_id),veiculo_id=COALESCE($12,veiculo_id) WHERE id=$13 AND oficina_id=$14",
+      [descricao||null,servicos||null,pecasTexto,itens?JSON.stringify(itens):null,valorMO,valorPecas,descontoFinal,status||null,validade||null,obs||null,cliente_id||null,veiculo_id||null,req.params.id,oid(req)]
+    );
     res.json({ok:true});
   } catch(err){res.status(500).json({error:'Erro interno'});}
 });

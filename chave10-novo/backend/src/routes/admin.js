@@ -105,8 +105,10 @@ router.post('/usuarios', validateUsuario, async (req,res) => {
   try {
     const {oficina_id,nome,email,senha,perfil}=req.body;
     if(perfil==='master_admin') return res.status(403).json({error:'Não permitido'});
+    const perfilFinal = ['admin_oficina','funcionario'].includes(perfil) ? perfil : 'funcionario';
     const hash=bcrypt.hashSync(senha,12);
-    const r=await queryOne("INSERT INTO usuarios(oficina_id,nome,email,senha_hash,perfil) VALUES($1,$2,$3,$4,$5) RETURNING id",[oficina_id||null,nome,email,hash,perfil||'admin_oficina']);
+    const r=await queryOne("INSERT INTO usuarios(oficina_id,nome,email,senha_hash,perfil) VALUES($1,$2,$3,$4,$5) RETURNING id",[oficina_id||null,nome,email,hash,perfilFinal]);
+    log.info('usuario_criado',{id:r.id,nome,perfil:perfilFinal,oficina_id});
     res.status(201).json({id:r.id});
   } catch(err){if(err.code==='23505')return res.status(400).json({error:'Email já cadastrado'});res.status(500).json({error:'Erro interno'});}
 });
