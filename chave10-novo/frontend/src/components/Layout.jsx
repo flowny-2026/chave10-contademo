@@ -374,35 +374,7 @@ export default function Layout({ area }) {
         </main>
       </div>
 
-      {/* Bottom Navigation — apenas mobile, apenas app */}
-      {area === 'app' && (
-        <nav className="bottom-nav">
-          <div className="bottom-nav-inner">
-            {bottomNavItems.map(item => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end
-                className={({ isActive }) =>
-                  `bottom-nav-item${item.isMain ? ' btn-nova-os' : ''}${isActive && !item.isMain ? ' active' : ''}`
-                }
-              >
-                {item.isMain ? (
-                  <>
-                    <div className="bnav-icon-wrap">{item.icon}</div>
-                    <span className="bnav-label">Nova OS</span>
-                  </>
-                ) : (
-                  <>
-                    {item.icon}
-                    <span className="bnav-label">{item.label}</span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-      )}
+      {/* Bottom Navigation removido a pedido do usuário */}
     </div>
   );
 }

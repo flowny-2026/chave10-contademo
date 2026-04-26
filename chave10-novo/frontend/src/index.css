@@ -2306,7 +2306,7 @@ tbody tr { transition: background .12s; }
   .bottom-nav { display: flex; }
 
   /* Padding extra no conteúdo para não ficar atrás do bottom nav */
-  .main-content { padding-bottom: 72px; }
+  .main-content { padding-bottom: 20px; }
 
   /* Topbar simplificada */
   .topbar { padding: 0 12px; height: 52px; gap: 6px; }
