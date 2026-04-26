@@ -382,7 +382,10 @@ export default function Layout({ area }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                className={({ isActive }) => `bottom-nav-item${item.isMain ? ' btn-nova-os' : ''}${isActive && !item.isMain ? ' active' : ''}`}
+                end
+                className={({ isActive }) =>
+                  `bottom-nav-item${item.isMain ? ' btn-nova-os' : ''}${isActive && !item.isMain ? ' active' : ''}`
+                }
               >
                 {item.isMain ? (
                   <>
